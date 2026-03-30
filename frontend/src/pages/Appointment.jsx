@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, User, FileText, CheckCircle, ShieldPlus } from 'lucide-react';
+import { Calendar, Clock, User, FileText, CheckCircle, ShieldPlus, AlertCircle } from 'lucide-react';
 
 // ==========================================
-// 🛠️ ฟังก์ชันช่วยเหลือ (Helper Functions)
+// 🔗 ตั้งค่า API URL (Backend บน Render)
 // ==========================================
-// ฟังก์ชันสำหรับสร้างช่วงเวลา
+const API_BASE_URL = import.meta.env.VITE_API_URL + '/api';
+
+// ฟังก์ชันสำหรับสร้างช่วงเวลา (ปรับปรุงให้ไม่เกินเวลาเลิกงาน)
 const generateTimeSlots = (start, end) => {
     const slots = [];
+    if (!start || !end) return slots;
+
     let current = new Date(`2024-01-01T${start}`);
     const stop = new Date(`2024-01-01T${end}`);
 
-    while (current <= stop) {
+    // ใช้ < แทน <= เพื่อให้ Slot สุดท้ายไม่ไปทับเวลาเลิกงานพอดี
+    while (current < stop) {
         slots.push(current.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
         current.setMinutes(current.getMinutes() + 30);
     }
@@ -24,8 +29,6 @@ const Appointment = () => {
     const [doctors, setDoctors] = useState([]);
     const [doctorInfo, setDoctorInfo] = useState(null);
     const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
-
-    // 🟢 State สำหรับสิทธิการรักษา
     const [useInsurance, setUseInsurance] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -40,7 +43,7 @@ const Appointment = () => {
     const [loading, setLoading] = useState(false);
     const [successQueue, setSuccessQueue] = useState(null);
 
-    // 1. เช็คสิทธิ์และดึงข้อมูลแผนกตอนโหลดหน้า
+    // 1. เช็คสิทธิ์และดึงข้อมูลแผนก
     useEffect(() => {
         const token = localStorage.getItem('token');
         const patientId = localStorage.getItem('patientId');
@@ -51,7 +54,7 @@ const Appointment = () => {
             return;
         }
 
-        fetch('http://localhost:5000/api/departments')
+        fetch(`${API_BASE_URL}/departments`)
             .then(res => res.json())
             .then(data => setDepartments(data))
             .catch(err => console.error('Error fetching departments:', err));
@@ -60,7 +63,7 @@ const Appointment = () => {
     // 2. ดึงข้อมูลหมอ เมื่อผู้ใช้เลือกแผนก
     useEffect(() => {
         if (formData.departmentId) {
-            fetch(`http://localhost:5000/api/departments/${formData.departmentId}/doctors`)
+            fetch(`${API_BASE_URL}/departments/${formData.departmentId}/doctors`)
                 .then(res => res.json())
                 .then(data => {
                     setDoctors(data);
@@ -76,7 +79,7 @@ const Appointment = () => {
     // 3. ดึงข้อมูลตารางเวลาและความเชี่ยวชาญ เมื่อเลือกหมอ
     useEffect(() => {
         if (formData.doctorId) {
-            fetch(`http://localhost:5000/api/doctors/${formData.doctorId}/info`)
+            fetch(`${API_BASE_URL}/doctors/${formData.doctorId}/info`)
                 .then(res => res.json())
                 .then(data => setDoctorInfo(data))
                 .catch(err => console.error('Error fetching doctor info:', err));
@@ -85,29 +88,22 @@ const Appointment = () => {
         }
     }, [formData.doctorId]);
 
-    // 4. สร้างช่วงเวลา เมื่อเลือก "วันที่" และ "หมอ"
+    // 4. สร้างช่วงเวลา (Logic การคำนวณวันในสัปดาห์แบบแม่นยำ)
     useEffect(() => {
-        if (formData.appointDate && doctorInfo && doctorInfo.schedules) {
-            const selectedDate = new Date(`${formData.appointDate}T00:00:00`);
+        if (formData.appointDate && doctorInfo?.schedules) {
+            // แยกวันที่เพื่อเลี่ยงปัญหา Timezone
+            const [year, month, day] = formData.appointDate.split('-').map(Number);
+            const selectedDate = new Date(year, month - 1, day);
             const dayIndex = selectedDate.getDay();
 
-            const dayNamesMap = {
-                0: ['sunday', 'อาทิตย์', 'sun'],
-                1: ['monday', 'จันทร์', 'mon'],
-                2: ['tuesday', 'อังคาร', 'tue'],
-                3: ['wednesday', 'พุธ', 'wed'],
-                4: ['thursday', 'พฤหัสบดี', 'thu'],
-                5: ['friday', 'ศุกร์', 'fri'],
-                6: ['saturday', 'เสาร์', 'sat']
-            };
-
-            const validDayNames = dayNamesMap[dayIndex];
+            const dayNamesEn = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const targetDay = dayNamesEn[dayIndex];
 
             const daySchedule = doctorInfo.schedules.find(s =>
-                s.Day_of_Week && validDayNames.includes(s.Day_of_Week.trim().toLowerCase())
+                s.Day_of_Week?.trim().toLowerCase() === targetDay
             );
 
-            if (daySchedule && daySchedule.Start_Time && daySchedule.End_Time) {
+            if (daySchedule?.Start_Time && daySchedule?.End_Time) {
                 const slots = generateTimeSlots(daySchedule.Start_Time, daySchedule.End_Time);
                 setAvailableTimeSlots(slots);
             } else {
@@ -124,8 +120,14 @@ const Appointment = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-const handleSubmit = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        if (!formData.appointTime) {
+            alert('กรุณาเลือกเวลาที่ต้องการนัดหมาย');
+            return;
+        }
+
         setLoading(true);
 
         const payload = {
@@ -138,14 +140,11 @@ const handleSubmit = async (e) => {
         };
 
         try {
-            // 🌟 1. ดึง Token จาก LocalStorage
             const token = localStorage.getItem('token');
-
-            const response = await fetch('http://localhost:5000/api/appointments', {
+            const response = await fetch(`${API_BASE_URL}/appointments`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
-                    // 🌟 2. แนบ Token ไปกับ Header ด้วย!
                     'Authorization': `Bearer ${token}` 
                 },
                 body: JSON.stringify(payload)
@@ -167,23 +166,19 @@ const handleSubmit = async (e) => {
         }
     };
 
-    // 🟢 ฟังก์ชันล้างค่าฟอร์มเพื่อกลับหน้าจองคิว
     const handleResetForm = () => {
         setSuccessQueue(null);
         setFormData({
-            departmentId: '',
-            doctorId: '',
-            insuranceId: '',
-            appointDate: '',
-            appointTime: '',
-            symptoms: ''
+            departmentId: '', doctorId: '', insuranceId: '',
+            appointDate: '', appointTime: '', symptoms: ''
         });
         setUseInsurance(false);
         setDoctorInfo(null);
         setAvailableTimeSlots([]);
-        window.scrollTo({ top: 0, behavior: 'smooth' }); // เลื่อนหน้าจอกลับขึ้นบนสุด
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // แสดงหน้าจอเมื่อจองสำเร็จ
     if (successQueue) {
         return (
             <div className="max-w-md mx-auto mt-10 p-8 bg-white rounded-3xl shadow-sm border border-green-100 text-center animate-fade-in">
@@ -194,10 +189,7 @@ const handleSubmit = async (e) => {
                     <p className="text-sm text-green-600 font-medium mb-1">หมายเลขคิวของคุณ</p>
                     <p className="text-4xl font-black text-green-700">{successQueue}</p>
                 </div>
-                <button
-                    onClick={handleResetForm}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all"
-                >
+                <button onClick={handleResetForm} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all">
                     กลับสู่หน้าจองคิว
                 </button>
             </div>
@@ -214,7 +206,6 @@ const handleSubmit = async (e) => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
-
                 {/* แผนกและแพทย์ */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -238,27 +229,25 @@ const handleSubmit = async (e) => {
                     </div>
                 </div>
 
-                {/* ข้อมูลความเชี่ยวชาญและวันเข้าตรวจของหมอ */}
+                {/* ข้อมูลหมอ */}
                 {doctorInfo && (
                     <div className="p-4 bg-blue-50 rounded-xl text-sm text-blue-700 flex flex-col gap-3">
-                        {doctorInfo.specialties && doctorInfo.specialties.length > 0 && (
+                        {doctorInfo.specialties?.length > 0 && (
                             <div className="flex items-start gap-2">
                                 <User size={18} className="mt-0.5 shrink-0" />
                                 <p><strong>ความเชี่ยวชาญ:</strong> {doctorInfo.specialties.join(', ')}</p>
                             </div>
                         )}
-
                         <div className="flex items-start gap-2">
                             <Calendar size={18} className="mt-0.5 shrink-0 text-blue-500" />
                             <p>
                                 <strong className="text-blue-800">วันเข้าตรวจ:</strong>{' '}
-                                {doctorInfo.schedules && doctorInfo.schedules.length > 0
+                                {doctorInfo.schedules?.length > 0
                                     ? [...new Set(doctorInfo.schedules.map(s => s.Day_of_Week.trim()))].map(day => {
                                         const thaiDays = { Sunday: 'อาทิตย์', Monday: 'จันทร์', Tuesday: 'อังคาร', Wednesday: 'พุธ', Thursday: 'พฤหัสบดี', Friday: 'ศุกร์', Saturday: 'เสาร์' };
                                         return thaiDays[day] || day;
                                     }).join(', ')
-                                    : 'ไม่มีข้อมูลตารางตรวจ'
-                                }
+                                    : 'ไม่มีข้อมูลตารางตรวจ'}
                             </p>
                         </div>
                     </div>
@@ -273,21 +262,16 @@ const handleSubmit = async (e) => {
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"><Clock size={16} /> เวลา</label>
-                        <select
-                            name="appointTime"
-                            value={formData.appointTime}
-                            onChange={handleChange}
-                            required
-                            disabled={availableTimeSlots.length === 0}
-                            className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-gray-50"
-                        >
+                        <select name="appointTime" value={formData.appointTime} onChange={handleChange} required disabled={availableTimeSlots.length === 0} className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-gray-50">
                             <option value="">-- เลือกเวลา --</option>
                             {availableTimeSlots.map(slot => (
                                 <option key={slot} value={slot}>{slot} น.</option>
                             ))}
                         </select>
                         {formData.appointDate && doctorInfo && availableTimeSlots.length === 0 && (
-                            <p className="text-red-500 text-sm mt-2">* ขออภัย แพทย์ไม่เข้าตรวจในวันดังกล่าว</p>
+                            <div className="flex items-center gap-1 text-red-500 text-sm mt-2 font-medium">
+                                <AlertCircle size={14} /> แพทย์ไม่เข้าตรวจในวันดังกล่าว
+                            </div>
                         )}
                     </div>
                 </div>
@@ -297,58 +281,28 @@ const handleSubmit = async (e) => {
                     <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
                         <ShieldPlus size={18} className="text-blue-600" /> สิทธิการรักษา / ประกันสุขภาพ
                     </label>
-
                     <div className="flex gap-6 mb-3">
                         <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="radio"
-                                name="insurance_choice"
-                                checked={!useInsurance}
-                                onChange={() => {
-                                    setUseInsurance(false);
-                                    setFormData({ ...formData, insuranceId: '' });
-                                }}
-                                className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                            />
-                            <span className="text-gray-700">ไม่ใช้สิทธิ (ชำระเงินเอง)</span>
+                            <input type="radio" name="insurance_choice" checked={!useInsurance} onChange={() => { setUseInsurance(false); setFormData({ ...formData, insuranceId: '' }); }} className="w-4 h-4 text-blue-600" />
+                            <span className="text-gray-700">ไม่ใช้สิทธิ</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="radio"
-                                name="insurance_choice"
-                                checked={useInsurance}
-                                onChange={() => setUseInsurance(true)}
-                                className="w-4 h-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                            />
+                            <input type="radio" name="insurance_choice" checked={useInsurance} onChange={() => setUseInsurance(true)} className="w-4 h-4 text-blue-600" />
                             <span className="text-gray-700">ใช้สิทธิ / ประกัน</span>
                         </label>
                     </div>
-
                     {useInsurance && (
-                        <input
-                            type="text"
-                            name="insuranceId"
-                            value={formData.insuranceId}
-                            onChange={handleChange}
-                            required={useInsurance}
-                            placeholder="โปรดระบุประกันสังคม, เลขกรมธรรม์..."
-                            className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none mt-2 transition-all"
-                        />
+                        <input type="text" name="insuranceId" value={formData.insuranceId} onChange={handleChange} required placeholder="โปรดระบุประกันสังคม, เลขกรมธรรม์..." className="w-full p-3 rounded-xl border border-gray-300 outline-none" />
                     )}
                 </div>
 
                 {/* อาการ */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"><FileText size={16} /> อาการเบื้องต้น</label>
-                    <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" required placeholder="อธิบายอาการเบื้องต้นของคุณ..." className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none resize-none"></textarea>
+                    <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" required placeholder="อธิบายอาการ..." className="w-full p-3 rounded-xl border border-gray-200 outline-none resize-none"></textarea>
                 </div>
 
-                <button
-                    type="submit"
-                    disabled={loading || availableTimeSlots.length === 0}
-                    className={`w-full py-4 rounded-xl font-bold text-white transition-all text-lg ${(loading || availableTimeSlots.length === 0) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl'
-                        }`}
-                >
+                <button type="submit" disabled={loading || (formData.appointDate && availableTimeSlots.length === 0)} className={`w-full py-4 rounded-xl font-bold text-white transition-all text-lg ${ (loading || (formData.appointDate && availableTimeSlots.length === 0)) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg' }`}>
                     {loading ? 'กำลังดำเนินการ...' : 'ยืนยันการจองคิว'}
                 </button>
             </form>

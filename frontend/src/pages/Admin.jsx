@@ -35,28 +35,31 @@ const Admin = () => {
             setIsLoading(true);
             const token = localStorage.getItem('token');
 
-            // เพิ่มการ Fetch ไปที่ API /api/admin/dashboard ที่เราเพิ่งแก้ Backend มา
+            // --- ส่วนที่แก้ไข: เปลี่ยน URL ให้รองรับ Render ---
+            const apiUrl = import.meta.env.VITE_API_URL || 'https://suktuarat-hospital.onrender.com';
+
             const [appResponse, dashboardResponse] = await Promise.all([
-                fetch('http://localhost:5000/api/appointments', {
+                fetch(`${apiUrl}/api/appointments`, { 
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 }),
-                fetch('http://localhost:5000/api/admin/dashboard', {
+                fetch(`${apiUrl}/api/admin/dashboard`, { 
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     }
                 })
             ]);
+            // ------------------------------------------
 
             if (!appResponse.ok || !dashboardResponse.ok) {
                 throw new Error('Network response was not ok หรือ Token อาจจะหมดอายุ');
             }
 
             const data = await appResponse.json();
-            const dashboardData = await dashboardResponse.json(); // ข้อมูลจาก API Dashboard
+            const dashboardData = await dashboardResponse.json(); 
 
             setAppointments(data);
 
@@ -69,13 +72,12 @@ const Admin = () => {
 
             const waitingCount = todayAppointments.filter(app => app.status === 'ยืนยันแล้ว').length;
             const completedCount = todayAppointments.filter(app => app.status === 'ตรวจเสร็จสิ้น').length;
-            
-            // 🚀 อัปเดต: ใช้ค่า totalDoctors ที่ได้จาก Dashboard API มาใส่ใน doctorsActive
+
             setStats({
                 totalPatients: todayAppointments.length,
                 completed: completedCount,
                 waiting: waitingCount,
-                doctorsActive: dashboardData.stats.totalDoctors // ดึงจำนวนแพทย์ที่มีเวรวันนี้จาก Backend
+                doctorsActive: dashboardData.stats.totalDoctors 
             });
 
             const deptCounts = {};
@@ -94,7 +96,6 @@ const Admin = () => {
 
             setDeptDensity(densityArray);
 
-            // การสร้างข้อมูลกราฟให้เข้ากับ Recharts
             const last7Days = [...Array(7)].map((_, i) => {
                 const d = new Date();
                 d.setDate(d.getDate() - (6 - i));
@@ -134,7 +135,11 @@ const Admin = () => {
         if (window.confirm(confirmMsg)) {
             try {
                 const token = localStorage.getItem('token');
-                const response = await fetch(`http://localhost:5000/api/appointments/${id}/status`, {
+                
+                // --- ส่วนที่แก้ไข: เปลี่ยน URL ให้รองรับ Render ---
+                const apiUrl = import.meta.env.VITE_API_URL || 'https://suktuarat-hospital.onrender.com';
+
+                const response = await fetch(`${apiUrl}/api/appointments/${id}/status`, { 
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
@@ -142,6 +147,7 @@ const Admin = () => {
                     },
                     body: JSON.stringify({ status: newStatus })
                 });
+                // ------------------------------------------
 
                 if (response.ok) {
                     fetchDashboardData();
@@ -245,7 +251,7 @@ const Admin = () => {
                                     <BarChart3 className="text-blue-500" size={20} /> สถิติผู้ป่วย 7 วันย้อนหลัง
                                 </h3>
                             </div>
-                            
+
                             <div className="h-64 w-full">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart
@@ -253,28 +259,28 @@ const Admin = () => {
                                         margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis 
-                                            dataKey="name" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#64748b', fontSize: 12 }} 
+                                        <XAxis
+                                            dataKey="name"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#64748b', fontSize: 12 }}
                                             dy={10}
                                         />
-                                        <YAxis 
-                                            allowDecimals={false} 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#64748b', fontSize: 12 }} 
+                                        <YAxis
+                                            allowDecimals={false}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{ fill: '#64748b', fontSize: 12 }}
                                         />
-                                        <Tooltip 
-                                            cursor={{fill: '#f8fafc'}}
+                                        <Tooltip
+                                            cursor={{ fill: '#f8fafc' }}
                                             contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                         />
                                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                        <Bar 
-                                            dataKey="จำนวนผู้ป่วย (คน)" 
-                                            fill="#3b82f6" 
-                                            radius={[6, 6, 0, 0]} 
+                                        <Bar
+                                            dataKey="จำนวนผู้ป่วย (คน)"
+                                            fill="#3b82f6"
+                                            radius={[6, 6, 0, 0]}
                                             barSize={40}
                                             animationDuration={1500}
                                         />
