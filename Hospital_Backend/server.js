@@ -206,7 +206,7 @@ app.get('/api/all-doctors', async (req, res) => {
                    dp.Department_ID as departmentId, dp.Department_Name as departmentName,
                    (SELECT GROUP_CONCAT(s.Specialty_Name SEPARATOR ', ')
                     FROM doctor_specialty ds
-                    JOIN Specialty s ON ds.Specialty_ID = s.Specialty_ID
+                    JOIN specialty s ON ds.Specialty_ID = s.Specialty_ID
                     WHERE ds.Doctor_ID = d.Doctor_ID) as spec,
                    (SELECT GROUP_CONCAT(sc.Day_of_Week SEPARATOR ', ')
                     FROM schedule sc
