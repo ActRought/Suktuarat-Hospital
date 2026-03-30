@@ -386,7 +386,7 @@ app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
                 END
             `),
             db.execute('SELECT COUNT(*) as count FROM appointment WHERE AppointDate = CURDATE()'),
-            db.execute('SELECT COUNT(*) as count FROM appointment WHERE Status = "รออนุมัติ"'),
+            db.execute('SELECT COUNT(*) as count FROM appointment WHERE STATUS = "ยืนยันแล้ว"'),
 
             // สถิติ 7 วันย้อนหลัง
             db.execute(`
@@ -404,7 +404,7 @@ app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
             FROM appointment a
             JOIN patient p ON a.PatientID = p.PatientID
             JOIN doctor d ON a.Doctor_ID = d.Doctor_ID
-            WHERE a.Status = 'รออนุมัติ'
+            WHERE a.STATUS = 'ยืนยันแล้ว'
             ORDER BY a.AppointDate ASC, a.AppointTime ASC
             LIMIT 5
         `);
@@ -435,7 +435,7 @@ app.put('/api/appointments/:id/status', async (req, res) => {
 
     try {
         const [result] = await db.execute(
-            'UPDATE Appointment SET Status = ? WHERE AppointID = ?',
+            'UPDATE appointment SET STATUS = ? WHERE AppointID = ?',
             [status, id]
         );
 
@@ -445,7 +445,7 @@ app.put('/api/appointments/:id/status', async (req, res) => {
 
         res.status(200).json({ message: 'อัปเดตสถานะสำเร็จ' });
     } catch (error) {
-        console.error('Update Status Error:', error);
+        console.error('Update STATUS Error:', error);
         res.status(500).json({ message: 'เกิดข้อผิดพลาดในการอัปเดตสถานะ' });
     }
 });
@@ -456,10 +456,10 @@ app.put('/api/appointments/:id/status', async (req, res) => {
 app.put('/api/appointments/:id/approve', verifyAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        await db.execute('UPDATE Appointment SET Status = "อนุมัติ" WHERE AppointID = ?', [id]);
+        await db.execute('UPDATE appointment SET STATUS = "อนุมัติ" WHERE AppointID = ?', [id]);
         res.status(200).json({ message: '✅ อนุมัติคิวสำเร็จ' });
     } catch (error) {
-        console.error('Approve Appointment Error:', error);
+        console.error('Approve appointment Error:', error);
         res.status(500).json({ message: 'เกิดข้อผิดพลาดในการอนุมัติคิว' });
     }
 });
@@ -470,10 +470,10 @@ app.put('/api/appointments/:id/approve', verifyAdmin, async (req, res) => {
 app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        await db.execute('UPDATE Appointment SET Status = "ยกเลิก" WHERE AppointID = ?', [id]);
+        await db.execute('UPDATE appointment SET STATUS = "ยกเลิก" WHERE AppointID = ?', [id]);
         res.status(200).json({ message: '✅ ยกเลิกคิวสำเร็จ' });
     } catch (error) {
-        console.error('Cancel Appointment Error:', error);
+        console.error('Cancel appointment Error:', error);
         res.status(500).json({ message: 'เกิดข้อผิดพลาดในการยกเลิกคิว' });
     }
 });
