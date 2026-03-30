@@ -12,9 +12,10 @@ const app = express();
 // 🛡️ Middleware: ตั้งค่า CORS สำหรับ Public (Production)
 // ==========================================
 const allowedOrigins = [
-    process.env.FRONTEND_URL, // รับค่า URL ของ Vercel จาก Environment Variables (ตั้งค่าใน Render)
-    'http://localhost:5173',  // สำหรับรัน Frontend ทดสอบในเครื่อง (Vite)
-    'http://localhost:3000'   // เผื่อใช้ Port 3000
+    process.env.FRONTEND_URL, // URL จาก Vercel (ต้องตั้งค่าใน Render Dashboard)
+    'http://localhost:5173',  // Vite Default
+    'http://localhost:3000',  // Create React App Default
+    'https://suktuarat-hospital-h1m0fkyoe-actroughts-projects.vercel.app' // เพิ่ม URL เว็บของคุณโดยตรงเพื่อความชัวร์
 ];
 
 app.use(cors({
