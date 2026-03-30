@@ -12,18 +12,29 @@ const app = express();
 // 🛡️ Middleware: ตั้งค่า CORS สำหรับ Public (Production)
 // ==========================================
 const allowedOrigins = [
-    'https://suktuarat-hospital-h1m0fkyoe-actroughts-projects.vercel.app', // URL จาก Vercel ของคุณ
-    'http://localhost:5173'
+    'https://hospital-suktuarat.vercel.app', // ลิงก์หลักที่คุณใช้
+    'https://suktuarat-hospital-h1m0fkyoe-actroughts-projects.vercel.app', // ลิงก์สำรอง
+    'http://localhost:5173',
+    process.env.FRONTEND_URL // ดึงจากที่ตั้งในหน้า Render Settings
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
+        // อนุญาตถ้า origin อยู่ในรายการ หรือเป็น request ภายใน (!origin)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Blocked by CORS'));
+            // กรณีไม่ตรง ให้ลองเช็คว่ามาจาก vercel.app หรือไม่ (Optional: เพื่อความยืดหยุ่น)
+            if (origin.endsWith('.vercel.app')) {
+                callback(null, true);
+            } else {
+                console.log("CORS Blocked for:", origin);
+                callback(new Error('Blocked by CORS'));
+            }
         }
     },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 
@@ -471,6 +482,7 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
 // 🚀 Start Server
 // ==========================================
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
+// แก้ไข: ลบ '0.0.0.0' ออกในบางกรณีเพื่อให้ Render จัดการ Port ได้ง่ายขึ้น
+app.listen(PORT, () => {
     console.log(`🚀 Server is running on port ${PORT}`);
 });
