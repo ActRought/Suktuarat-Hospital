@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #F8FAFC;
+  /* สีพื้นหลังเว็บขาวอมเทานิดๆ สบายตา */
+}

@@ -1,0 +1,478 @@
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const db = require('./db'); // นำเข้าไฟล์เชื่อมต่อ Database ที่เราทำไว้
+require('dotenv').config();
+require('./emailService'); // เพื่อเรียกใช้งานระบบแจ้งเตือนอีเมล (Cron Job)
+
+const app = express();
+
+// ==========================================
+// 🛡️ Middleware: ตั้งค่า CORS สำหรับ Public (Production)
+// ==========================================
+const allowedOrigins = [
+    process.env.FRONTEND_URL, // รับค่า URL ของ Vercel จาก Environment Variables (ตั้งค่าใน Render)
+    'http://localhost:5173',  // สำหรับรัน Frontend ทดสอบในเครื่อง (Vite)
+    'http://localhost:3000'   // เผื่อใช้ Port 3000
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        // อนุญาตถ้าไม่มี origin (เช่น ยิงผ่าน Postman/ระบบภายใน) หรือ origin อยู่ในรายการที่อนุญาต
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('ไม่อนุญาตโดย CORS: ' + origin));
+        }
+    },
+    credentials: true // อนุญาตให้ส่ง Cookie/Token ข้ามโดเมนได้
+}));
+
+app.use(express.json()); // ให้ Backend อ่านข้อมูลแบบ JSON ได้
+
+// ==========================================
+// 🛡️ Middleware: ตรวจสอบ Token และสิทธิ์ Admin
+// ==========================================
+const verifyAdmin = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ message: '❌ ไม่อนุญาตให้เข้าถึง กรุณาเข้าสู่ระบบ' });
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(403).json({ message: '❌ Session หมดอายุ หรือ Token ไม่ถูกต้อง' });
+        }
+
+        if (decoded.role !== 'Admin') {
+            return res.status(403).json({ message: '❌ คุณไม่มีสิทธิ์เข้าถึงข้อมูลส่วนนี้' });
+        }
+
+        req.user = decoded;
+        next();
+    });
+};
+
+// ==========================================
+// 📍 API: ตรวจสอบสถานะเซิร์ฟเวอร์
+// ==========================================
+app.get('/', (req, res) => {
+    res.send('🏥 Hospital Backend is running perfectly!');
+});
+
+// ==========================================
+// 📍 API: สมัครสมาชิก (Register)
+// ==========================================
+app.post('/api/register', async (req, res) => {
+    const { Name, IDCard13, Gender, Birthday, Phone, Email, Password } = req.body;
+
+    try {
+        const [existingUser] = await db.execute(
+            'SELECT * FROM Account a JOIN Patient p ON a.PatientID = p.PatientID WHERE a.Email = ? OR p.IDCard13 = ?',
+            [Email, IDCard13]
+        );
+
+        if (existingUser.length > 0) {
+            return res.status(400).json({ message: '❌ อีเมลหรือเลขบัตรประชาชนนี้ถูกใช้งานแล้ว' });
+        }
+
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(Password, saltRounds);
+
+        await db.query('START TRANSACTION');
+
+        const [patientResult] = await db.execute(
+            'INSERT INTO Patient (patient_name, IDCard13, Gender, Birthday, Phone, email) VALUES (?, ?, ?, ?, ?, ?)',
+            [Name, IDCard13, Gender, Birthday, Phone, Email]
+        );
+
+        const newPatientId = patientResult.insertId;
+
+        await db.execute(
+            'INSERT INTO Account (PatientID, Email, Password) VALUES (?, ?, ?)',
+            [newPatientId, Email, hashedPassword]
+        );
+
+        await db.query('COMMIT');
+        res.status(201).json({ message: '✅ สมัครสมาชิกสำเร็จ!' });
+
+    } catch (error) {
+        await db.query('ROLLBACK');
+        console.error('Register Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์', error: error.message });
+    }
+});
+
+// ==========================================
+// 📍 API: เข้าสู่ระบบ (Login)
+// ==========================================
+app.post('/api/login', async (req, res) => {
+    const { Email, Password } = req.body;
+
+    try {
+        const [users] = await db.execute('SELECT * FROM Account WHERE Email = ?', [Email]);
+
+        if (users.length === 0) {
+            return res.status(401).json({ message: '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+        }
+
+        const user = users[0];
+        const dbPassword = user.PASSWORD || user.Password || user.password;
+
+        if (!Password || !dbPassword) {
+            return res.status(500).json({ message: 'เกิดข้อผิดพลาด: ไม่พบข้อมูลรหัสผ่านในระบบ' });
+        }
+
+        const isPasswordValid = await bcrypt.compare(Password, dbPassword);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
+        }
+
+        const token = jwt.sign(
+            {
+                accountId: user.ACCOUNTID || user.AccountID || user.accountID,
+                patientId: user.PATIENTID || user.PatientID || user.patientID,
+                email: user.EMAIL || user.Email || user.email,
+                role: user.ROLE || user.Role || user.role
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        res.status(200).json({
+            message: '✅ เข้าสู่ระบบสำเร็จ',
+            token: token,
+            patientId: user.PATIENTID || user.PatientID || user.patientID,
+            role: user.ROLE || user.Role || user.role
+        });
+
+    } catch (error) {
+        console.error('Login Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดจากเซิร์ฟเวอร์', error: error.message });
+    }
+});
+
+// ==========================================
+// 📍 API: ดึงข้อมูลแผนกทั้งหมด
+// ==========================================
+app.get('/api/departments', async (req, res) => {
+    try {
+        const [departments] = await db.query('SELECT * FROM Department ORDER BY Department_Name ASC');
+        res.status(200).json(departments);
+    } catch (error) {
+        console.error('Fetch Departments Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงข้อมูลแผนก' });
+    }
+});
+
+// ==========================================
+// 📍 API: ดึงข้อมูลแพทย์ตามแผนก
+// ==========================================
+app.get('/api/departments/:departmentId/doctors', async (req, res) => {
+    const { departmentId } = req.params;
+
+    try {
+        const [doctors] = await db.execute(
+            'SELECT Doctor_ID, Doctor_Name FROM Doctor WHERE Department_ID = ?',
+            [departmentId]
+        );
+        res.status(200).json(doctors);
+    } catch (error) {
+        console.error('Fetch Doctors Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงข้อมูลแพทย์' });
+    }
+});
+
+// ==========================================
+// 📍 API: ดึงรายชื่อแพทย์ทั้งหมด
+// ==========================================
+app.get('/api/all-doctors', async (req, res) => {
+    try {
+        const query = `
+            SELECT d.Doctor_ID as id, d.Doctor_Name as name,
+                   dp.Department_ID as departmentId, dp.Department_Name as departmentName,
+                   (SELECT GROUP_CONCAT(s.Specialty_Name SEPARATOR ', ')
+                    FROM Doctor_Specialty ds
+                    JOIN Specialty s ON ds.Specialty_ID = s.Specialty_ID
+                    WHERE ds.Doctor_ID = d.Doctor_ID) as spec,
+                   (SELECT GROUP_CONCAT(sc.Day_of_Week SEPARATOR ', ')
+                    FROM Schedule sc
+                    WHERE sc.Doctor_ID = d.Doctor_ID) as Day_of_Week
+            FROM Doctor d
+            JOIN Department dp ON d.Department_ID = dp.Department_ID
+        `;
+        const [doctors] = await db.execute(query);
+        res.status(200).json(doctors);
+    } catch (error) {
+        console.error('Fetch All Doctors Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงข้อมูลแพทย์' });
+    }
+});
+
+// ==========================================
+// 📍 API: ดึงตารางเวลาเข้าตรวจ และความเชี่ยวชาญของแพทย์
+// ==========================================
+app.get('/api/doctors/:doctorId/info', async (req, res) => {
+    const { doctorId } = req.params;
+
+    try {
+        const [schedules] = await db.execute(
+            'SELECT Day_of_Week, Start_Time, End_Time FROM Schedule WHERE Doctor_ID = ?',
+            [doctorId]
+        );
+
+        const [specialties] = await db.execute(
+            `SELECT s.Specialty_Name 
+             FROM Doctor_Specialty ds 
+             JOIN Specialty s ON ds.Specialty_ID = s.Specialty_ID 
+             WHERE ds.Doctor_ID = ?`,
+            [doctorId]
+        );
+
+        res.status(200).json({
+            schedules: schedules,
+            specialties: specialties.map(sp => sp.Specialty_Name)
+        });
+    } catch (error) {
+        console.error('Fetch Doctor Info Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงข้อมูลแพทย์' });
+    }
+});
+
+// ==========================================
+// 📍 API: จองคิวตรวจ (Create Appointment)
+// ==========================================
+app.post('/api/appointments', async (req, res) => {
+    const { patientId, doctorId, insuranceId, appointDate, appointTime, symptoms } = req.body;
+
+    try {
+        await db.query('START TRANSACTION');
+
+        const [appointResult] = await db.execute(
+            `INSERT INTO Appointment (PatientID, Doctor_ID, InsuranceID, AppointDate, AppointTime, Symptoms, Status) 
+             VALUES (?, ?, ?, ?, ?, ?, 'รออนุมัติ')`,
+            [patientId, doctorId, insuranceId || null, appointDate, appointTime, symptoms]
+        );
+
+        const newAppointId = appointResult.insertId;
+
+        const [lastQueue] = await db.execute(
+            `SELECT q.QueueNumber 
+             FROM Queue q
+             JOIN Appointment a ON q.AppointID = a.AppointID
+             WHERE a.Doctor_ID = ? AND a.AppointDate = ?
+             ORDER BY a.AppointID DESC 
+             LIMIT 1 FOR UPDATE`,
+            [doctorId, appointDate]
+        );
+
+        let nextQueueNumber = 1;
+        if (lastQueue.length > 0) {
+            const lastNumber = parseInt(lastQueue[0].QueueNumber.substring(1));
+            nextQueueNumber = lastNumber + 1;
+        }
+
+        const queueStr = `Q${nextQueueNumber.toString().padStart(3, '0')}`;
+
+        await db.execute(
+            'INSERT INTO Queue (AppointID, QueueNumber, QueueStatus) VALUES (?, ?, "รอเรียก")',
+            [newAppointId, queueStr]
+        );
+
+        await db.query('COMMIT');
+
+        res.status(201).json({
+            message: '✅ จองคิวสำเร็จ!',
+            appointmentId: newAppointId,
+            queueNumber: queueStr
+        });
+
+    } catch (error) {
+        await db.query('ROLLBACK');
+        console.error('Appointment Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการจองคิว' });
+    }
+});
+
+// ==========================================
+// 📍 API: ดึงประวัติการนัดหมายของผู้ป่วย
+// ==========================================
+app.get('/api/patients/:patientId/appointments', async (req, res) => {
+    const { patientId } = req.params;
+
+    try {
+        const query = `
+            SELECT a.AppointID, a.AppointDate, a.AppointTime, a.Status, a.Symptoms,
+                   d.Doctor_Name, q.QueueNumber, q.QueueStatus
+            FROM Appointment a
+            JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID
+            LEFT JOIN Queue q ON a.AppointID = q.AppointID
+            WHERE a.PatientID = ?
+            ORDER BY a.AppointDate DESC, a.AppointTime DESC
+        `;
+        const [appointments] = await db.execute(query, [patientId]);
+        res.status(200).json(appointments);
+    } catch (error) {
+        console.error('Fetch Appointments Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงประวัติการนัดหมาย' });
+    }
+});
+
+// ==========================================
+// 📍 API: ดึงข้อมูลคิวทั้งหมดสำหรับตารางหน้า Admin Dashboard
+// ==========================================
+app.get('/api/appointments', verifyAdmin, async (req, res) => {
+    try {
+        const query = `
+            SELECT a.AppointID as id, 
+                   a.AppointDate as date,
+                   p.patient_name as patient,
+                   d.Doctor_Name as doctor, 
+                   dp.Department_Name as dept, 
+                   TIME_FORMAT(a.AppointTime, '%H:%i') as time, 
+                   a.Status as status
+            FROM Appointment a
+            JOIN Patient p ON a.PatientID = p.PatientID
+            JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID
+            JOIN Department dp ON d.Department_ID = dp.Department_ID
+            ORDER BY a.AppointDate DESC, a.AppointTime ASC
+        `;
+        const [appointments] = await db.execute(query);
+        res.status(200).json(appointments);
+    } catch (error) {
+        console.error('Fetch Appointments Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงข้อมูลคิว' });
+    }
+});
+
+// ==========================================
+// 📍 API: ดึงข้อมูลสรุปสำหรับ Admin Dashboard
+// ==========================================
+app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
+    try {
+        const [
+            [totalPatients],
+            [todayDoctors],
+            [todayAppointments],
+            [pendingAppointments],
+            [weeklyStats]
+        ] = await Promise.all([
+            db.execute('SELECT COUNT(*) as count FROM Patient'),
+
+            db.execute(`
+                SELECT COUNT(DISTINCT Doctor_ID) as count 
+                FROM Schedule 
+                WHERE Day_of_Week = CASE DAYOFWEEK(CURDATE())
+                    WHEN 1 THEN 'อาทิตย์'
+                    WHEN 2 THEN 'จันทร์'
+                    WHEN 3 THEN 'อังคาร'
+                    WHEN 4 THEN 'พุธ'
+                    WHEN 5 THEN 'พฤหัสบดี'
+                    WHEN 6 THEN 'ศุกร์'
+                    WHEN 7 THEN 'เสาร์'
+                END
+            `),
+            db.execute('SELECT COUNT(*) as count FROM Appointment WHERE AppointDate = CURDATE()'),
+            db.execute('SELECT COUNT(*) as count FROM Appointment WHERE Status = "รออนุมัติ"'),
+
+            // สถิติ 7 วันย้อนหลัง
+            db.execute(`
+                SELECT DATE_FORMAT(AppointDate, '%Y-%m-%d') as date, COUNT(*) as count 
+                FROM Appointment 
+                WHERE AppointDate >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
+                  AND AppointDate <= CURDATE()
+                GROUP BY AppointDate 
+                ORDER BY AppointDate ASC
+            `)
+        ]);
+
+        const [recentPending] = await db.execute(`
+            SELECT a.AppointID, p.patient_name as PatientName, d.Doctor_Name, a.AppointDate, a.AppointTime, a.Symptoms
+            FROM Appointment a
+            JOIN Patient p ON a.PatientID = p.PatientID
+            JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID
+            WHERE a.Status = 'รออนุมัติ'
+            ORDER BY a.AppointDate ASC, a.AppointTime ASC
+            LIMIT 5
+        `);
+
+        res.status(200).json({
+            stats: {
+                totalPatients: totalPatients[0].count,
+                totalDoctors: todayDoctors[0].count,
+                todayAppointments: todayAppointments[0].count,
+                pendingAppointments: pendingAppointments[0].count
+            },
+            weeklyStats: weeklyStats,
+            recentPending: recentPending
+        });
+
+    } catch (error) {
+        console.error('Dashboard Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงข้อมูล Dashboard' });
+    }
+});
+
+// ==========================================
+// 📍 API: อัปเดตสถานะคิวตรวจ (สำหรับ Admin)
+// ==========================================
+app.put('/api/appointments/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    try {
+        const [result] = await db.execute(
+            'UPDATE Appointment SET Status = ? WHERE AppointID = ?',
+            [status, id]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'ไม่พบข้อมูลคิวตรวจที่ต้องการอัปเดต' });
+        }
+
+        res.status(200).json({ message: 'อัปเดตสถานะสำเร็จ' });
+    } catch (error) {
+        console.error('Update Status Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการอัปเดตสถานะ' });
+    }
+});
+
+// ==========================================
+// 📍 API: อนุมัติคิวจากหน้า Admin
+// ==========================================
+app.put('/api/appointments/:id/approve', verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+    try {
+        await db.execute('UPDATE Appointment SET Status = "อนุมัติ" WHERE AppointID = ?', [id]);
+        res.status(200).json({ message: '✅ อนุมัติคิวสำเร็จ' });
+    } catch (error) {
+        console.error('Approve Appointment Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการอนุมัติคิว' });
+    }
+});
+
+// ==========================================
+// 📍 API: ยกเลิกคิวจากหน้า Admin
+// ==========================================
+app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
+    const { id } = req.params;
+    try {
+        await db.execute('UPDATE Appointment SET Status = "ยกเลิก" WHERE AppointID = ?', [id]);
+        res.status(200).json({ message: '✅ ยกเลิกคิวสำเร็จ' });
+    } catch (error) {
+        console.error('Cancel Appointment Error:', error);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาดในการยกเลิกคิว' });
+    }
+});
+
+// ==========================================
+// 🚀 Start Server
+// ==========================================
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+});
