@@ -12,22 +12,19 @@ const app = express();
 // 🛡️ Middleware: ตั้งค่า CORS สำหรับ Public (Production)
 // ==========================================
 const allowedOrigins = [
-    'https://suktuarat-hospital-h1m0fkyoe-actroughts-projects.vercel.app', // URL ของหน้าเว็บคุณ
-    'http://localhost:5173', // สำหรับเปิดทดสอบในเครื่องตัวเอง
-    'http://localhost:3000'
+    'https://suktuarat-hospital-h1m0fkyoe-actroughts-projects.vercel.app', // URL จาก Vercel ของคุณ
+    'http://localhost:5173'
 ];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // อนุญาตให้เข้าถึงถ้า origin อยู่ในรายการ หรือไม่มี origin (เช่นการเรียกภายในระบบ)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
-            callback(new Error('Blocked by CORS: ' + origin));
+            callback(new Error('Blocked by CORS'));
         }
     },
-    credentials: true, // จำเป็นมากสำหรับการส่ง Token/Cookies ข้ามโดเมน
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+    credentials: true
 }));
 
 app.use(express.json()); // ให้ Backend อ่านข้อมูลแบบ JSON ได้
