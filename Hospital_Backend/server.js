@@ -80,7 +80,7 @@ app.post('/api/register', async (req, res) => {
 
     try {
         const [existingUser] = await db.execute(
-            'SELECT * FROM Account a JOIN Patient p ON a.PatientID = p.PatientID WHERE a.Email = ? OR p.IDCard13 = ?',
+            'SELECT * FROM account a JOIN patient p ON a.PatientID = p.PatientID WHERE a.email = ? OR p.IDCard13 = ?',
             [Email, IDCard13]
         );
 
@@ -122,7 +122,7 @@ app.post('/api/login', async (req, res) => {
     const { Email, Password } = req.body;
 
     try {
-        const [users] = await db.execute('SELECT * FROM Account WHERE Email = ?', [Email]);
+        const [users] = await db.execute('SELECT * FROM account WHERE email = ?', [Email]);
 
         if (users.length === 0) {
             return res.status(401).json({ message: '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
@@ -170,7 +170,7 @@ app.post('/api/login', async (req, res) => {
 // ==========================================
 app.get('/api/departments', async (req, res) => {
     try {
-        const [departments] = await db.query('SELECT * FROM Department ORDER BY Department_Name ASC');
+        const [departments] = await db.query('SELECT * FROM department ORDER BY Department_Name ASC');
         res.status(200).json(departments);
     } catch (error) {
         console.error('Fetch Departments Error:', error);
@@ -186,7 +186,7 @@ app.get('/api/departments/:departmentId/doctors', async (req, res) => {
 
     try {
         const [doctors] = await db.execute(
-            'SELECT Doctor_ID, Doctor_Name FROM Doctor WHERE Department_ID = ?',
+            'SELECT Doctor_ID, Doctor_Name FROM doctor WHERE Department_ID = ?',
             [departmentId]
         );
         res.status(200).json(doctors);
@@ -205,14 +205,14 @@ app.get('/api/all-doctors', async (req, res) => {
             SELECT d.Doctor_ID as id, d.Doctor_Name as name,
                    dp.Department_ID as departmentId, dp.Department_Name as departmentName,
                    (SELECT GROUP_CONCAT(s.Specialty_Name SEPARATOR ', ')
-                    FROM Doctor_Specialty ds
+                    FROM doctor_specialty ds
                     JOIN Specialty s ON ds.Specialty_ID = s.Specialty_ID
                     WHERE ds.Doctor_ID = d.Doctor_ID) as spec,
                    (SELECT GROUP_CONCAT(sc.Day_of_Week SEPARATOR ', ')
-                    FROM Schedule sc
+                    FROM schedule sc
                     WHERE sc.Doctor_ID = d.Doctor_ID) as Day_of_Week
-            FROM Doctor d
-            JOIN Department dp ON d.Department_ID = dp.Department_ID
+            FROM doctor d
+            JOIN department dp ON d.Department_ID = dp.Department_ID
         `;
         const [doctors] = await db.execute(query);
         res.status(200).json(doctors);
@@ -230,14 +230,14 @@ app.get('/api/doctors/:doctorId/info', async (req, res) => {
 
     try {
         const [schedules] = await db.execute(
-            'SELECT Day_of_Week, Start_Time, End_Time FROM Schedule WHERE Doctor_ID = ?',
+            'SELECT Day_of_Week, Start_Time, End_Time FROM schedule WHERE Doctor_ID = ?',
             [doctorId]
         );
 
         const [specialties] = await db.execute(
             `SELECT s.Specialty_Name 
-             FROM Doctor_Specialty ds 
-             JOIN Specialty s ON ds.Specialty_ID = s.Specialty_ID 
+             FROM doctor_specialty ds 
+             JOIN specialty s ON ds.Specialty_ID = s.Specialty_ID 
              WHERE ds.Doctor_ID = ?`,
             [doctorId]
         );
@@ -271,8 +271,8 @@ app.post('/api/appointments', async (req, res) => {
 
         const [lastQueue] = await db.execute(
             `SELECT q.QueueNumber 
-             FROM Queue q
-             JOIN Appointment a ON q.AppointID = a.AppointID
+             FROM queue q
+             JOIN appointment a ON q.AppointID = a.AppointID
              WHERE a.Doctor_ID = ? AND a.AppointDate = ?
              ORDER BY a.AppointID DESC 
              LIMIT 1 FOR UPDATE`,
@@ -317,9 +317,9 @@ app.get('/api/patients/:patientId/appointments', async (req, res) => {
         const query = `
             SELECT a.AppointID, a.AppointDate, a.AppointTime, a.Status, a.Symptoms,
                    d.Doctor_Name, q.QueueNumber, q.QueueStatus
-            FROM Appointment a
-            JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID
-            LEFT JOIN Queue q ON a.AppointID = q.AppointID
+            FROM appointment a
+            JOIN doctor d ON a.Doctor_ID = d.Doctor_ID
+            LEFT JOIN queue q ON a.AppointID = q.AppointID
             WHERE a.PatientID = ?
             ORDER BY a.AppointDate DESC, a.AppointTime DESC
         `;
@@ -344,10 +344,10 @@ app.get('/api/appointments', verifyAdmin, async (req, res) => {
                    dp.Department_Name as dept, 
                    TIME_FORMAT(a.AppointTime, '%H:%i') as time, 
                    a.Status as status
-            FROM Appointment a
-            JOIN Patient p ON a.PatientID = p.PatientID
-            JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID
-            JOIN Department dp ON d.Department_ID = dp.Department_ID
+            FROM appointment a
+            JOIN patient p ON a.PatientID = p.PatientID
+            JOIN doctor d ON a.Doctor_ID = d.Doctor_ID
+            JOIN department dp ON d.Department_ID = dp.Department_ID
             ORDER BY a.AppointDate DESC, a.AppointTime ASC
         `;
         const [appointments] = await db.execute(query);
@@ -370,11 +370,11 @@ app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
             [pendingAppointments],
             [weeklyStats]
         ] = await Promise.all([
-            db.execute('SELECT COUNT(*) as count FROM Patient'),
+            db.execute('SELECT COUNT(*) as count FROM patient'),
 
             db.execute(`
                 SELECT COUNT(DISTINCT Doctor_ID) as count 
-                FROM Schedule 
+                FROM schedule 
                 WHERE Day_of_Week = CASE DAYOFWEEK(CURDATE())
                     WHEN 1 THEN 'อาทิตย์'
                     WHEN 2 THEN 'จันทร์'
@@ -385,13 +385,13 @@ app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
                     WHEN 7 THEN 'เสาร์'
                 END
             `),
-            db.execute('SELECT COUNT(*) as count FROM Appointment WHERE AppointDate = CURDATE()'),
-            db.execute('SELECT COUNT(*) as count FROM Appointment WHERE Status = "รออนุมัติ"'),
+            db.execute('SELECT COUNT(*) as count FROM appointment WHERE AppointDate = CURDATE()'),
+            db.execute('SELECT COUNT(*) as count FROM appointment WHERE Status = "รออนุมัติ"'),
 
             // สถิติ 7 วันย้อนหลัง
             db.execute(`
                 SELECT DATE_FORMAT(AppointDate, '%Y-%m-%d') as date, COUNT(*) as count 
-                FROM Appointment 
+                FROM appointment 
                 WHERE AppointDate >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
                   AND AppointDate <= CURDATE()
                 GROUP BY AppointDate 
@@ -401,9 +401,9 @@ app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
 
         const [recentPending] = await db.execute(`
             SELECT a.AppointID, p.patient_name as PatientName, d.Doctor_Name, a.AppointDate, a.AppointTime, a.Symptoms
-            FROM Appointment a
-            JOIN Patient p ON a.PatientID = p.PatientID
-            JOIN Doctor d ON a.Doctor_ID = d.Doctor_ID
+            FROM appointment a
+            JOIN patient p ON a.PatientID = p.PatientID
+            JOIN doctor d ON a.Doctor_ID = d.Doctor_ID
             WHERE a.Status = 'รออนุมัติ'
             ORDER BY a.AppointDate ASC, a.AppointTime ASC
             LIMIT 5
