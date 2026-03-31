@@ -479,6 +479,24 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
 });
 
 // ==========================================
+// 🛠️ API ชั่วคราวสำหรับแก้ Database (รันเสร็จแล้วลบทิ้งได้เลย)
+// ==========================================
+app.get('/api/fix-database', async (req, res) => {
+    try {
+        // 1. ลบกฎ Foreign Key
+        await db.query('ALTER TABLE appointment DROP FOREIGN KEY appointment_ibfk_3');
+        
+        // 2. เปลี่ยนชนิดคอลัมน์ให้รับตัวหนังสือยาวๆ ได้
+        await db.query('ALTER TABLE appointment MODIFY InsuranceID VARCHAR(100)');
+        
+        res.status(200).send('✅ แก้ไขฐานข้อมูลสำเร็จเรียบร้อย! สามารถจองคิวได้เลยครับ');
+    } catch (error) {
+        console.error('Fix DB Error:', error);
+        res.status(500).send(`❌ เกิดข้อผิดพลาด: ${error.message}`);
+    }
+});
+
+// ==========================================
 // 🚀 Start Server
 // ==========================================
 const PORT = process.env.PORT || 5000;
