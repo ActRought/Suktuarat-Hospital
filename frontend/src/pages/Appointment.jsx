@@ -106,7 +106,7 @@ const Appointment = () => {
         }
     }, [formData.doctorId]);
 
-    // 5. สร้างช่วงเวลา (Logic การคำนวณวันในสัปดาห์แบบแม่นยำ)
+    // 5. สร้างช่วงเวลา (แก้ไขให้เทียบกับวันภาษาไทย)
     useEffect(() => {
         if (formData.appointDate && doctorInfo?.schedules) {
             // แยกวันที่เพื่อเลี่ยงปัญหา Timezone
@@ -114,11 +114,13 @@ const Appointment = () => {
             const selectedDate = new Date(year, month - 1, day);
             const dayIndex = selectedDate.getDay();
 
-            const dayNamesEn = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const targetDay = dayNamesEn[dayIndex];
+            // เปลี่ยนจากเทียบวันภาษาอังกฤษเป็นภาษาไทย
+            const dayNamesTh = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
+            const targetDay = dayNamesTh[dayIndex];
 
+            // ค้นหาตารางงานของหมอในวันที่เลือก
             const daySchedule = doctorInfo.schedules.find(s =>
-                s.Day_of_Week?.trim().toLowerCase() === targetDay
+                s.Day_of_Week?.trim() === targetDay
             );
 
             if (daySchedule?.Start_Time && daySchedule?.End_Time) {
