@@ -479,21 +479,6 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
 });
 
 // ==========================================
-// 🛠️ API ขยายขนาดคอลัมน์ InsuranceID
-// ==========================================
-app.get('/api/fix-column-size', async (req, res) => {
-    try {
-        // สั่งเปลี่ยนชนิดคอลัมน์ให้เป็น VARCHAR ที่รับได้ 255 ตัวอักษร
-        await db.query('ALTER TABLE appointment MODIFY InsuranceID VARCHAR(255);');
-        
-        res.status(200).send('✅ ขยายขนาดช่อง InsuranceID เป็น 255 ตัวอักษรเรียบร้อย! ลองจองคิวใหม่ได้เลยครับ');
-    } catch (error) {
-        console.error('Fix DB Error:', error);
-        res.status(500).send(`❌ เกิดข้อผิดพลาด: ${error.message}`);
-    }
-});
-
-// ==========================================
 // 🚀 Start Server
 // ==========================================
 const PORT = process.env.PORT || 5000;
