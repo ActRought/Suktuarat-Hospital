@@ -479,16 +479,16 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
 });
 
 // ==========================================
-// 🛠️ API ชั่วคราว: ขยายขนาดคอลัมน์ InsuranceID เป็น 50 ตัวอักษร
+// 🛠️ API ชั่วคราว: ลบกฎ Foreign Key ที่ขวางการจองคิว
 // ==========================================
-app.get('/api/fix-insurance-size', async (req, res) => {
+app.get('/api/drop-foreign-key', async (req, res) => {
     try {
-        // สั่งเปลี่ยนชนิดคอลัมน์ให้เป็น VARCHAR ที่รับได้ 50 ตัวอักษร
-        await db.query('ALTER TABLE appointment MODIFY InsuranceID VARCHAR(50);');
+        // สั่งลบกฎ Foreign Key ที่ชื่อ appointment_ibfk_3 ทิ้งไป
+        await db.query('ALTER TABLE appointment DROP FOREIGN KEY appointment_ibfk_3;');
         
-        res.status(200).send('✅ ขยายขนาดช่อง InsuranceID เป็น 50 ตัวอักษรเรียบร้อย! กลับไปกดจองคิวได้เลยครับ');
+        res.status(200).send('✅ ปลดล็อกกฎ Foreign Key สำเร็จ! คราวนี้จองคิวผ่าน 100% แน่นอนครับ 🚀');
     } catch (error) {
-        console.error('Fix DB Error:', error);
+        console.error('Drop FK Error:', error);
         res.status(500).send(`❌ เกิดข้อผิดพลาด: ${error.message}`);
     }
 });
