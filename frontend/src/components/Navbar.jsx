@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck, LogOut, X, LogIn } from 'lucide-react'; // 🟢 เพิ่มไอคอน LogIn เข้ามา
+import { Bell, CheckCheck, LogOut, X, LogIn, Menu } from 'lucide-react'; // 🟢 เพิ่มไอคอน Menu เข้ามา
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -9,13 +9,16 @@ const Navbar = () => {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const notificationRef = useRef(null);
+  
+  // 🟢 State สำหรับเปิด/ปิดเมนูแฮมเบอร์เกอร์ในมือถือ
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 🟢 ดึงข้อมูล Role และ PatientID จาก localStorage
+  // ดึงข้อมูล Role และ PatientID จาก localStorage
   const rawRole = localStorage.getItem('Role');
   const userRole = (rawRole || 'user').trim().toLowerCase();
   const patientId = localStorage.getItem('patientId'); 
 
-  // 🟢 เช็กว่าเข้าสู่ระบบหรือยัง (ถ้ามี patientId หรือ Role ในเครื่อง แปลว่าล็อกอินแล้ว)
+  // เช็กว่าเข้าสู่ระบบหรือยัง
   const isLoggedIn = !!patientId || !!rawRole; 
 
   // State สำหรับเก็บข้อมูลการแจ้งเตือน(คิว) และ Modal
@@ -56,7 +59,7 @@ const Navbar = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientId, isLoggedIn]);
 
-  // ปิด Dropdown เมื่อคลิกที่อื่น
+  // ปิด Dropdown แจ้งเตือนเมื่อคลิกที่อื่น
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
@@ -89,7 +92,8 @@ const Navbar = () => {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/auth'); // 🟢 กลับไปหน้า Auth หลังจากล็อกเอาท์
+    setIsMobileMenuOpen(false); // ปิดเมนูมือถือตอนกดออก
+    navigate('/auth'); 
   };
 
   const isActive = (path) => location.pathname === path;
@@ -106,31 +110,31 @@ const Navbar = () => {
           <div className="flex justify-between items-center h-24">
 
             {/* ================= ฝั่งซ้าย: โลโก้และชื่อโรงพยาบาล ================= */}
-            <Link to="/" className="flex items-center gap-4 group">
+            <Link to="/" className="flex items-center gap-3 group">
               <img
                 src="/logo.png"
                 alt="โลโก้โรงพยาบาลสุขทั่วราษฎร์"
-                className="h-16 md:h-18 w-auto object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-sm"
+                className="h-12 md:h-18 w-auto object-contain transition-transform duration-300 group-hover:scale-105 drop-shadow-sm"
               />
               <div className="flex flex-col justify-center">
-                <h1 className="text-xl md:text-2xl font-extrabold text-blue-900 leading-tight tracking-tight">
+                <h1 className="text-lg md:text-2xl font-extrabold text-blue-900 leading-tight tracking-tight">
                   โรงพยาบาลสุขทั่วราษฎร์
                 </h1>
-                <span className="text-[11px] md:text-xs text-gray-400 font-bold tracking-widest uppercase mt-0.5">
+                <span className="text-[10px] md:text-xs text-gray-400 font-bold tracking-widest uppercase mt-0.5">
                   Suktuarat Hospital
                 </span>
               </div>
             </Link>
 
             {/* ================= ฝั่งขวา: เมนู, แจ้งเตือน, เข้าสู่ระบบ/ออกจากระบบ ================= */}
-            <div className="flex items-center h-full">
+            <div className="flex items-center h-full gap-2 md:gap-0">
 
+              {/* เมนูสำหรับจอคอมพิวเตอร์ (ซ่อนในมือถือ) */}
               <nav className="hidden md:flex h-full mr-8">
                 {userRole === 'admin' && isLoggedIn && (
                   <Link
                     to="/dashboard"
-                    className={`relative flex items-center px-5 text-sm font-semibold transition-colors duration-200 hover:text-blue-600 ${isActive('/dashboard') ? 'text-blue-600' : 'text-gray-500'
-                      }`}
+                    className={`relative flex items-center px-5 text-sm font-semibold transition-colors duration-200 hover:text-blue-600 ${isActive('/dashboard') ? 'text-blue-600' : 'text-gray-500'}`}
                   >
                     แดชบอร์ด (Admin)
                     {isActive('/dashboard') && <span className="absolute bottom-0 left-0 w-full h-[3px] bg-blue-600 rounded-t-md"></span>}
@@ -139,8 +143,7 @@ const Navbar = () => {
 
                 <Link
                   to="/"
-                  className={`relative flex items-center px-5 text-sm font-semibold transition-colors duration-200 hover:text-blue-600 ${isActive('/') ? 'text-blue-600' : 'text-gray-500'
-                    }`}
+                  className={`relative flex items-center px-5 text-sm font-semibold transition-colors duration-200 hover:text-blue-600 ${isActive('/') ? 'text-blue-600' : 'text-gray-500'}`}
                 >
                   จองคิวตรวจ
                   {isActive('/') && <span className="absolute bottom-0 left-0 w-full h-[3px] bg-blue-600 rounded-t-md"></span>}
@@ -148,8 +151,7 @@ const Navbar = () => {
 
                 <Link
                   to="/doctors"
-                  className={`relative flex items-center px-5 text-sm font-semibold transition-colors duration-200 hover:text-blue-600 ${isActive('/doctors') ? 'text-blue-600' : 'text-gray-500'
-                    }`}
+                  className={`relative flex items-center px-5 text-sm font-semibold transition-colors duration-200 hover:text-blue-600 ${isActive('/doctors') ? 'text-blue-600' : 'text-gray-500'}`}
                 >
                   รายชื่อแพทย์
                   {isActive('/doctors') && <span className="absolute bottom-0 left-0 w-full h-[3px] bg-blue-600 rounded-t-md"></span>}
@@ -158,9 +160,9 @@ const Navbar = () => {
 
               <div className="hidden md:block w-px h-8 bg-gray-200 mx-2"></div>
 
-              {/* ================= ปุ่มแจ้งเตือน (ซ่อนถ้ายังไม่ล็อกอิน หรือเป็น Admin) ================= */}
+              {/* ปุ่มแจ้งเตือน */}
               {isLoggedIn && userRole !== 'admin' && (
-                <div className="relative mx-4" ref={notificationRef}>
+                <div className="relative mx-1 md:mx-4" ref={notificationRef}>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -178,7 +180,7 @@ const Navbar = () => {
 
                   {/* Dropdown แจ้งเตือน */}
                   {showNotifications && (
-                    <div className="absolute right-0 mt-4 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
+                    <div className="absolute right-[-60px] md:right-0 mt-4 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
                       <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
                         <h3 className="font-bold text-gray-800">การจองคิวของคุณ</h3>
                       </div>
@@ -220,35 +222,72 @@ const Navbar = () => {
                 </div>
               )}
 
-              {/* ================= ปุ่ม เข้าสู่ระบบ / ออกจากระบบ ================= */}
+              {/* ปุ่ม เข้าสู่ระบบ / ออกจากระบบ */}
               {isLoggedIn ? (
-                // 🟢 กรณีล็อกอินแล้ว แสดงปุ่ม "ออกจากระบบ"
                 <button
                   onClick={handleLogout}
-                  className="group flex items-center gap-2 text-sm font-semibold text-gray-500 px-4 py-2 border border-transparent rounded-full hover:border-red-100 hover:bg-red-50 hover:text-red-600 transition-all duration-300"
+                  className="group flex items-center gap-2 text-sm font-semibold text-gray-500 px-3 py-2 border border-transparent rounded-full hover:border-red-100 hover:bg-red-50 hover:text-red-600 transition-all duration-300"
                 >
-                  <LogOut size={18} className="text-gray-400 group-hover:text-red-500 transition-colors" />
+                  <LogOut size={20} className="text-gray-400 group-hover:text-red-500 transition-colors" />
                   <span className="hidden md:block">ออกจากระบบ</span>
                 </button>
               ) : (
-                // 🟢 กรณียังไม่ล็อกอิน แสดงปุ่ม "เข้าสู่ระบบ / สมัครสมาชิก"
                 <Link
                   to="/auth"
-                  className="group flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 px-5 py-2.5 rounded-full hover:bg-blue-700 transition-all duration-300 shadow-md hover:shadow-lg ml-2"
+                  className="group flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 px-4 md:px-5 py-2 md:py-2.5 rounded-full hover:bg-blue-700 transition-all duration-300 shadow-md hover:shadow-lg ml-1 md:ml-2"
                 >
                   <LogIn size={18} className="text-white group-hover:scale-110 transition-transform" />
                   <span className="hidden md:block">เข้าสู่ระบบ / สมัครสมาชิก</span>
                 </Link>
               )}
 
+              {/* 🟢 ปุ่มแฮมเบอร์เกอร์สำหรับมือถือ */}
+              <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="md:hidden p-2 text-gray-500 hover:bg-gray-100 rounded-md transition-colors ml-1"
+              >
+                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
+
             </div>
           </div>
         </div>
+
+        {/* 🟢 เมนู Dropdown สำหรับจอมือถือ */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-white border-t border-gray-100 shadow-lg absolute w-full left-0 animate-fade-in">
+            <div className="px-4 pt-2 pb-4 space-y-1">
+              {userRole === 'admin' && isLoggedIn && (
+                <Link
+                  to="/dashboard"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`block px-3 py-3 rounded-md text-base font-medium ${isActive('/dashboard') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'}`}
+                >
+                  แดชบอร์ด (Admin)
+                </Link>
+              )}
+              <Link
+                to="/"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`block px-3 py-3 rounded-md text-base font-medium ${isActive('/') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'}`}
+              >
+                จองคิวตรวจ
+              </Link>
+              <Link
+                to="/doctors"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`block px-3 py-3 rounded-md text-base font-medium ${isActive('/doctors') ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600 hover:bg-gray-50'}`}
+              >
+                รายชื่อแพทย์
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* ================= Modal แสดงรายละเอียดและยกเลิกคิว ================= */}
       {isModalOpen && selectedAppoint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-fade-in relative">
 
             {/* Header Modal */}
