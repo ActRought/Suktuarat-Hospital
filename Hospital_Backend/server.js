@@ -479,21 +479,6 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
 });
 
 // ==========================================
-// 🛠️ API ชั่วคราว: ลบกฎ Foreign Key ที่ขวางการจองคิว
-// ==========================================
-app.get('/api/drop-foreign-key', async (req, res) => {
-    try {
-        // สั่งลบกฎ Foreign Key ที่ชื่อ appointment_ibfk_3 ทิ้งไป
-        await db.query('ALTER TABLE appointment DROP FOREIGN KEY appointment_ibfk_3;');
-        
-        res.status(200).send('✅ ปลดล็อกกฎ Foreign Key สำเร็จ! คราวนี้จองคิวผ่าน 100% แน่นอนครับ 🚀');
-    } catch (error) {
-        console.error('Drop FK Error:', error);
-        res.status(500).send(`❌ เกิดข้อผิดพลาด: ${error.message}`);
-    }
-});
-
-// ==========================================
 // 🚀 Start Server
 // ==========================================
 const PORT = process.env.PORT || 5000;
