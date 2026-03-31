@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck, LogOut, X } from 'lucide-react';
+import { Bell, CheckCheck, LogOut, X, LogIn } from 'lucide-react'; // 🟢 เพิ่มไอคอน LogIn เข้ามา
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 
@@ -11,8 +11,12 @@ const Navbar = () => {
   const notificationRef = useRef(null);
 
   // 🟢 ดึงข้อมูล Role และ PatientID จาก localStorage
-  const userRole = (localStorage.getItem('Role') || 'user').trim().toLowerCase();
-  const patientId = localStorage.getItem('patientId'); // <--- ตรวจสอบให้แน่ใจว่าตอน Login เซ็ตชื่อ Key นี้
+  const rawRole = localStorage.getItem('Role');
+  const userRole = (rawRole || 'user').trim().toLowerCase();
+  const patientId = localStorage.getItem('patientId'); 
+
+  // 🟢 เช็กว่าเข้าสู่ระบบหรือยัง (ถ้ามี patientId หรือ Role ในเครื่อง แปลว่าล็อกอินแล้ว)
+  const isLoggedIn = !!patientId || !!rawRole; 
 
   // State สำหรับเก็บข้อมูลการแจ้งเตือน(คิว) และ Modal
   const [notifications, setNotifications] = useState([]);
@@ -22,11 +26,10 @@ const Navbar = () => {
   // ดึงคิวที่ "รออนุมัติ" หรือ "รอเรียก" มานับเป็นแจ้งเตือนที่ยังไม่อ่าน
   const unreadCount = notifications.filter(n => n.Status === 'รออนุมัติ' || n.Status === 'รอเรียก').length;
 
-  // 🟢 ฟังก์ชันดึงข้อมูลการจองของ User คนนี้
+  // ฟังก์ชันดึงข้อมูลการจองของ User คนนี้
   const fetchAppointments = async () => {
-    if (!patientId || userRole === 'admin') return; // ถ้าเป็นแอดมินหรือไม่มีไอดีไม่ต้องดึง
+    if (!isLoggedIn || !patientId || userRole === 'admin') return; 
     try {
-      // 🟢 แก้ไขลิงก์เชื่อมต่อฐานข้อมูลตรงนี้
       const res = await axios.get(`https://suktuarat-hospital.onrender.com/api/patients/${patientId}/appointments`);
       setNotifications(res.data);
     } catch (error) {
@@ -35,28 +38,23 @@ const Navbar = () => {
   };
 
   useEffect(() => {
-    // 1. ดึงข้อมูลครั้งแรกตอนโหลดหน้า
     fetchAppointments();
 
-    // 2. ตั้งเวลาดึงข้อมูลทุกๆ 10 วินาที (เผื่อกรณีแอดมินกดอนุมัติ)
     const intervalId = setInterval(() => {
       fetchAppointments();
     }, 10000);
 
-    // ⭐ 3. สร้างตัวดักฟัง (Listener) รอดึงข้อมูลทันทีที่มีการจองคิวใหม่
     const handleUpdateNotifications = () => {
       fetchAppointments();
     };
     window.addEventListener('updateNotifications', handleUpdateNotifications);
 
-    // 4. คืนค่าฟังก์ชันสำหรับเคลียร์ Event และ Timer
     return () => {
       clearInterval(intervalId);
       window.removeEventListener('updateNotifications', handleUpdateNotifications);
     };
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId]);
+  }, [patientId, isLoggedIn]);
 
   // ปิด Dropdown เมื่อคลิกที่อื่น
   useEffect(() => {
@@ -69,22 +67,19 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 🟢 เมื่อคลิกที่แจ้งเตือน ให้เปิด Modal
   const handleNotificationClick = (appoint) => {
     setSelectedAppoint(appoint);
     setIsModalOpen(true);
-    setShowNotifications(false); // ปิด dropdown
+    setShowNotifications(false); 
   };
 
-  // 🟢 ฟังก์ชันกดยกเลิกคิว
   const handleCancelAppointment = async (appointId) => {
     if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการยกเลิกคิวนี้?")) {
       try {
-        // 🟢 แก้ไขลิงก์เชื่อมต่อฐานข้อมูลตรงนี้
         await axios.put(`https://suktuarat-hospital.onrender.com/api/appointments/${appointId}/cancel`);
         alert("ยกเลิกคิวสำเร็จ");
         setIsModalOpen(false);
-        fetchAppointments(); // รีเฟรชข้อมูลใหม่
+        fetchAppointments(); 
       } catch (error) {
         console.error("Error cancelling appointment", error);
         alert("เกิดข้อผิดพลาดในการยกเลิกคิว");
@@ -94,12 +89,11 @@ const Navbar = () => {
 
   const handleLogout = () => {
     localStorage.clear();
-    navigate('/auth');
+    navigate('/auth'); // 🟢 กลับไปหน้า Auth หลังจากล็อกเอาท์
   };
 
   const isActive = (path) => location.pathname === path;
 
-  // ฟังก์ชันแปลงวันที่ให้อ่านง่าย
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString('th-TH', options);
@@ -128,11 +122,11 @@ const Navbar = () => {
               </div>
             </Link>
 
-            {/* ================= ฝั่งขวา: เมนู, แจ้งเตือน, ออกจากระบบ ================= */}
+            {/* ================= ฝั่งขวา: เมนู, แจ้งเตือน, เข้าสู่ระบบ/ออกจากระบบ ================= */}
             <div className="flex items-center h-full">
 
               <nav className="hidden md:flex h-full mr-8">
-                {userRole === 'admin' && (
+                {userRole === 'admin' && isLoggedIn && (
                   <Link
                     to="/dashboard"
                     className={`relative flex items-center px-5 text-sm font-semibold transition-colors duration-200 hover:text-blue-600 ${isActive('/dashboard') ? 'text-blue-600' : 'text-gray-500'
@@ -164,8 +158,8 @@ const Navbar = () => {
 
               <div className="hidden md:block w-px h-8 bg-gray-200 mx-2"></div>
 
-              {/* ================= ปุ่มแจ้งเตือน ================= */}
-              {userRole !== 'admin' && (
+              {/* ================= ปุ่มแจ้งเตือน (ซ่อนถ้ายังไม่ล็อกอิน หรือเป็น Admin) ================= */}
+              {isLoggedIn && userRole !== 'admin' && (
                 <div className="relative mx-4" ref={notificationRef}>
                   <button
                     onClick={(e) => {
@@ -182,7 +176,7 @@ const Navbar = () => {
                     )}
                   </button>
 
-                  {/* ================= Dropdown แจ้งเตือน ================= */}
+                  {/* Dropdown แจ้งเตือน */}
                   {showNotifications && (
                     <div className="absolute right-0 mt-4 w-80 bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden">
                       <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
@@ -226,13 +220,26 @@ const Navbar = () => {
                 </div>
               )}
 
-              <button
-                onClick={handleLogout}
-                className="group flex items-center gap-2 text-sm font-semibold text-gray-500 px-4 py-2 border border-transparent rounded-full hover:border-red-100 hover:bg-red-50 hover:text-red-600 transition-all duration-300"
-              >
-                <LogOut size={18} className="text-gray-400 group-hover:text-red-500 transition-colors" />
-                <span className="hidden md:block">ออกจากระบบ</span>
-              </button>
+              {/* ================= ปุ่ม เข้าสู่ระบบ / ออกจากระบบ ================= */}
+              {isLoggedIn ? (
+                // 🟢 กรณีล็อกอินแล้ว แสดงปุ่ม "ออกจากระบบ"
+                <button
+                  onClick={handleLogout}
+                  className="group flex items-center gap-2 text-sm font-semibold text-gray-500 px-4 py-2 border border-transparent rounded-full hover:border-red-100 hover:bg-red-50 hover:text-red-600 transition-all duration-300"
+                >
+                  <LogOut size={18} className="text-gray-400 group-hover:text-red-500 transition-colors" />
+                  <span className="hidden md:block">ออกจากระบบ</span>
+                </button>
+              ) : (
+                // 🟢 กรณียังไม่ล็อกอิน แสดงปุ่ม "เข้าสู่ระบบ / สมัครสมาชิก"
+                <Link
+                  to="/auth"
+                  className="group flex items-center gap-2 text-sm font-semibold text-white bg-blue-600 px-5 py-2.5 rounded-full hover:bg-blue-700 transition-all duration-300 shadow-md hover:shadow-lg ml-2"
+                >
+                  <LogIn size={18} className="text-white group-hover:scale-110 transition-transform" />
+                  <span className="hidden md:block">เข้าสู่ระบบ / สมัครสมาชิก</span>
+                </Link>
+              )}
 
             </div>
           </div>
