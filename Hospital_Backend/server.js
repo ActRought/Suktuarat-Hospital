@@ -456,7 +456,7 @@ app.put('/api/appointments/:id/status', async (req, res) => {
 app.put('/api/appointments/:id/approve', verifyAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        await db.execute('UPDATE appointment SET STATUS = "อนุมัติ" WHERE AppointID = ?', [id]);
+        await db.execute('UPDATE appointment SET STATUS = "ตรวจเสร็จสิ้น" WHERE AppointID = ?', [id]);
         res.status(200).json({ message: '✅ อนุมัติคิวสำเร็จ' });
     } catch (error) {
         console.error('Approve appointment Error:', error);
