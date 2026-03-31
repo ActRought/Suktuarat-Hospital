@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // 🟢 เพิ่ม useLocation
 import { Calendar, Clock, User, FileText, CheckCircle, ShieldPlus, AlertCircle } from 'lucide-react';
 
 // ==========================================
@@ -25,6 +25,7 @@ const generateTimeSlots = (start, end) => {
 
 const Appointment = () => {
     const navigate = useNavigate();
+    const location = useLocation(); // 🟢 เรียกใช้ useLocation เพื่อรับค่าจากหน้า Doctors.jsx
     const [departments, setDepartments] = useState([]);
     const [doctors, setDoctors] = useState([]);
     const [doctorInfo, setDoctorInfo] = useState(null);
@@ -43,6 +44,20 @@ const Appointment = () => {
     const [loading, setLoading] = useState(false);
     const [successQueue, setSuccessQueue] = useState(null);
 
+    // 🟢 ดักจับข้อมูล State ที่ส่งมาจากหน้า Doctors.jsx (ทำงานครั้งเดียวตอนโหลดหน้า)
+    useEffect(() => {
+        if (location.state && location.state.selectedDepartmentId) {
+            setFormData(prev => ({
+                ...prev,
+                departmentId: location.state.selectedDepartmentId,
+                doctorId: location.state.selectedDoctorId || ''
+            }));
+            
+            // เคลียร์ state ใน history ออก ป้องกันการกด Refresh แล้วค่าค้าง
+            window.history.replaceState({}, document.title);
+        }
+    }, [location]);
+
     // 1. เช็คสิทธิ์และดึงข้อมูลแผนก
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -60,21 +75,24 @@ const Appointment = () => {
             .catch(err => console.error('Error fetching departments:', err));
     }, [navigate]);
 
-    // 2. ดึงข้อมูลหมอ เมื่อผู้ใช้เลือกแผนก
+    // 2. ดึงข้อมูลหมอ เมื่อผู้ใช้เลือกแผนก หรือเมื่อมีการรับค่าจากหน้า Doctors
     useEffect(() => {
         if (formData.departmentId) {
             fetch(`${API_BASE_URL}/departments/${formData.departmentId}/doctors`)
                 .then(res => res.json())
                 .then(data => {
                     setDoctors(data);
-                    setFormData(prev => ({ ...prev, doctorId: '' }));
+                    // 🟢 เช็คว่าถ้าไม่มีการตั้งค่าหมอไว้ล่วงหน้า (กรณีเลือกเองในหน้าจอง) ค่อยรีเซ็ตค่า
+                    if (!location.state?.selectedDoctorId) {
+                        setFormData(prev => ({ ...prev, doctorId: prev.doctorId || '' }));
+                    }
                     setDoctorInfo(null);
                 })
                 .catch(err => console.error('Error fetching doctors:', err));
         } else {
             setDoctors([]);
         }
-    }, [formData.departmentId]);
+    }, [formData.departmentId, location.state]);
 
     // 3. ดึงข้อมูลตารางเวลาและความเชี่ยวชาญ เมื่อเลือกหมอ
     useEffect(() => {

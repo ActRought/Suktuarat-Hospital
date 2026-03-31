@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // 🟢 เปลี่ยนจาก Link เป็น useNavigate
 import { Users, Stethoscope, Award, CalendarCheck, ChevronRight, ChevronDown } from 'lucide-react';
 
 // ==========================================
@@ -8,6 +8,7 @@ import { Users, Stethoscope, Award, CalendarCheck, ChevronRight, ChevronDown } f
 const API_BASE_URL = import.meta.env.VITE_API_URL + '/api';
 
 const Doctors = () => {
+    const navigate = useNavigate(); // 🟢 เรียกใช้งาน navigate
     const [selectedDept, setSelectedDept] = useState('all');
     const [departments, setDepartments] = useState([{ id: 'all', name: 'แพทย์ทั้งหมด' }]);
     const [doctorsData, setDoctorsData] = useState([]);
@@ -17,7 +18,7 @@ const Doctors = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // 1. ดึงข้อมูลแผนกทั้งหมดจาก Render
+                // 1. ดึงข้อมูลแผนกทั้งหมด
                 const deptRes = await fetch(`${API_BASE_URL}/departments`);
                 const deptData = await deptRes.json();
                 
@@ -30,7 +31,7 @@ const Doctors = () => {
                 ];
                 setDepartments(formattedDepts);
 
-                // 2. ดึงข้อมูลแพทย์ทั้งหมดจาก Render
+                // 2. ดึงข้อมูลแพทย์ทั้งหมด
                 const docRes = await fetch(`${API_BASE_URL}/all-doctors`);
                 const docData = await docRes.json();
                 
@@ -58,6 +59,17 @@ const Doctors = () => {
     const filteredDoctors = selectedDept === 'all'
         ? doctorsData
         : doctorsData.filter(doc => doc.departmentId?.toString() === selectedDept);
+
+    // 🟢 ฟังก์ชันสำหรับรับมือตอนกดปุ่มนัดหมายหมอ
+    const handleBookAppointment = (doc) => {
+        // สั่งให้เด้งกลับไปที่หน้าแรก "/" พร้อมแนบ State (ข้อมูลแผนกและหมอ) ไปด้วย
+        navigate('/', { 
+            state: { 
+                selectedDepartmentId: doc.departmentId, 
+                selectedDoctorId: doc.id 
+            } 
+        });
+    };
 
     return (
         <div className="max-w-7xl mx-auto py-6 animate-fade-in px-4">
@@ -139,12 +151,13 @@ const Doctors = () => {
                                         </div>
                                     </div>
 
-                                    <Link 
-                                        to="/appointment" 
+                                    {/* 🟢 เปลี่ยนจาก Link เป็น <button> และเรียกฟังก์ชัน handleBookAppointment */}
+                                    <button 
+                                        onClick={() => handleBookAppointment(doc)} 
                                         className="w-full flex items-center justify-center gap-2 bg-white border-2 border-blue-600 text-blue-600 py-3 rounded-xl font-bold hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95"
                                     >
                                         <CalendarCheck size={18} /> นัดหมายแพทย์ <ChevronRight size={18} />
-                                    </Link>
+                                    </button>
                                 </div>
                             );
                         })}
