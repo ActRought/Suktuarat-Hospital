@@ -288,7 +288,7 @@ app.post('/api/appointments', async (req, res) => {
         const queueStr = `Q${nextQueueNumber.toString().padStart(3, '0')}`;
 
         await db.execute(
-            'INSERT INTO queue (AppointID, QueueNumber, QueueStatus) VALUES (?, ?, "รอเรียก")',
+            "INSERT INTO queue (AppointID, QueueNumber, QueueStatus) VALUES (?, ?, 'รอเรียก')",
             [newAppointId, queueStr]
         );
 
