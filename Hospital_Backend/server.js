@@ -263,7 +263,7 @@ app.post('/api/appointments', async (req, res) => {
 
         const [appointResult] = await db.execute(
             `INSERT INTO appointment (PatientID, Doctor_ID, InsuranceID, AppointDate, AppointTime, Symptoms, Status) 
-             VALUES (?, ?, ?, ?, ?, ?, 'รออนุมัติ')`,
+             VALUES (?, ?, ?, ?, ?, ?, 'ยืนยันแล้ว')`,
             [patientId, doctorId, insuranceId || null, appointDate, appointTime, symptoms]
         );
 
