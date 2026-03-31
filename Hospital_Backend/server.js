@@ -386,7 +386,7 @@ app.get('/api/admin/dashboard', verifyAdmin, async (req, res) => {
                 END
             `),
             db.execute('SELECT COUNT(*) as count FROM appointment WHERE AppointDate = CURDATE()'),
-            db.execute('SELECT COUNT(*) as count FROM appointment WHERE STATUS = "ยืนยันแล้ว"'),
+            db.execute("SELECT COUNT(*) as count FROM appointment WHERE STATUS = 'ยืนยันแล้ว'"),
 
             // สถิติ 7 วันย้อนหลัง
             db.execute(`
@@ -456,7 +456,7 @@ app.put('/api/appointments/:id/status', async (req, res) => {
 app.put('/api/appointments/:id/approve', verifyAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        await db.execute('UPDATE appointment SET STATUS = "ตรวจเสร็จสิ้น" WHERE AppointID = ?', [id]);
+        await db.execute("UPDATE appointment SET STATUS = 'ตรวจเสร็จสิ้น' WHERE AppointID = ?", [id]);
         res.status(200).json({ message: '✅ อนุมัติคิวสำเร็จ' });
     } catch (error) {
         console.error('Approve appointment Error:', error);
@@ -470,7 +470,7 @@ app.put('/api/appointments/:id/approve', verifyAdmin, async (req, res) => {
 app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        await db.execute('UPDATE appointment SET STATUS = "ยกเลิก" WHERE AppointID = ?', [id]);
+        await db.execute("UPDATE appointment SET STATUS = 'ยกเลิก' WHERE AppointID = ?", [id]);
         res.status(200).json({ message: '✅ ยกเลิกคิวสำเร็จ' });
     } catch (error) {
         console.error('Cancel appointment Error:', error);
