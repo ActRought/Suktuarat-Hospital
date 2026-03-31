@@ -80,7 +80,7 @@ app.post('/api/register', async (req, res) => {
 
     try {
         const [existingUser] = await db.execute(
-            'SELECT * FROM account a JOIN patient p ON a.PatientID = p.PatientID WHERE a.email = ? OR p.IDCard13 = ?',
+            'SELECT * FROM account a JOIN patient p ON a.PatientID = p.PatientID WHERE a.Email = ? OR p.IDCard13 = ?',
             [Email, IDCard13]
         );
 
@@ -94,14 +94,14 @@ app.post('/api/register', async (req, res) => {
         await db.query('START TRANSACTION');
 
         const [patientResult] = await db.execute(
-            'INSERT INTO Patient (patient_name, IDCard13, Gender, Birthday, Phone, email) VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO patient (patient_name, IDCard13, Gender, Birthday, Phone, Email) VALUES (?, ?, ?, ?, ?, ?)',
             [Name, IDCard13, Gender, Birthday, Phone, Email]
         );
 
         const newPatientId = patientResult.insertId;
 
         await db.execute(
-            'INSERT INTO Account (PatientID, Email, Password) VALUES (?, ?, ?)',
+            'INSERT INTO account (PatientID, Email, PASSWORD) VALUES (?, ?, ?)',
             [newPatientId, Email, hashedPassword]
         );
 
@@ -122,7 +122,7 @@ app.post('/api/login', async (req, res) => {
     const { Email, Password } = req.body;
 
     try {
-        const [users] = await db.execute('SELECT * FROM account WHERE email = ?', [Email]);
+        const [users] = await db.execute('SELECT * FROM account WHERE Email = ?', [Email]);
 
         if (users.length === 0) {
             return res.status(401).json({ message: '❌ อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
@@ -262,7 +262,7 @@ app.post('/api/appointments', async (req, res) => {
         await db.query('START TRANSACTION');
 
         const [appointResult] = await db.execute(
-            `INSERT INTO Appointment (PatientID, Doctor_ID, InsuranceID, AppointDate, AppointTime, Symptoms, Status) 
+            `INSERT INTO appointment (PatientID, Doctor_ID, InsuranceID, AppointDate, AppointTime, Symptoms, Status) 
              VALUES (?, ?, ?, ?, ?, ?, 'รออนุมัติ')`,
             [patientId, doctorId, insuranceId || null, appointDate, appointTime, symptoms]
         );
@@ -288,7 +288,7 @@ app.post('/api/appointments', async (req, res) => {
         const queueStr = `Q${nextQueueNumber.toString().padStart(3, '0')}`;
 
         await db.execute(
-            'INSERT INTO Queue (AppointID, QueueNumber, QueueStatus) VALUES (?, ?, "รอเรียก")',
+            'INSERT INTO queue (AppointID, QueueNumber, QueueStatus) VALUES (?, ?, "รอเรียก")',
             [newAppointId, queueStr]
         );
 
