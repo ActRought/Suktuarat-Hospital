@@ -150,13 +150,14 @@ const Appointment = () => {
 
         setLoading(true);
 
+        // 🟢 แก้ไข: ตรวจสอบและแปลงค่า symptoms เป็น null หากไม่ได้กรอกข้อมูล
         const payload = {
             patientId: localStorage.getItem('patientId'),
             doctorId: formData.doctorId,
             insuranceId: useInsurance ? formData.insuranceId : '',
             appointDate: formData.appointDate,
             appointTime: formData.appointTime,
-            symptoms: formData.symptoms
+            symptoms: formData.symptoms ? formData.symptoms : null 
         };
 
         try {
@@ -319,7 +320,8 @@ const Appointment = () => {
                 {/* อาการ */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"><FileText size={16} /> อาการเบื้องต้น</label>
-                    <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" required placeholder="อธิบายอาการ..." className="w-full p-3 rounded-xl border border-gray-200 outline-none resize-none text-sm md:text-base"></textarea>
+                    {/* 🟢 แก้ไข: นำ required ออก และเปลี่ยน placeholder */}
+                    <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" placeholder="อธิบายอาการ... (ไม่บังคับ)" className="w-full p-3 rounded-xl border border-gray-200 outline-none resize-none text-sm md:text-base"></textarea>
                 </div>
 
                 <button type="submit" disabled={loading || (formData.appointDate && availableTimeSlots.length === 0)} className={`w-full py-3 md:py-4 rounded-xl font-bold text-white transition-all text-base md:text-lg ${ (loading || (formData.appointDate && availableTimeSlots.length === 0)) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg' }`}>
