@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Calendar, Clock, User, FileText, CheckCircle, ShieldPlus, AlertCircle } from 'lucide-react';
 
+// 🟢 1. นำเข้า react-datepicker และ CSS ของมัน
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+
 // ==========================================
 // 🔗 ตั้งค่า API URL (Backend บน Render)
 // ==========================================
 const API_BASE_URL = import.meta.env.VITE_API_URL + '/api';
 
-// ฟังก์ชันสำหรับสร้างช่วงเวลา (ปรับปรุงให้ไม่เกินเวลาเลิกงาน)
+// ฟังก์ชันสำหรับสร้างช่วงเวลา
 const generateTimeSlots = (start, end) => {
     const slots = [];
     if (!start || !end) return slots;
@@ -15,7 +19,6 @@ const generateTimeSlots = (start, end) => {
     let current = new Date(`2024-01-01T${start}`);
     const stop = new Date(`2024-01-01T${end}`);
 
-    // ใช้ < แทน <= เพื่อให้ Slot สุดท้ายไม่ไปทับเวลาเลิกงานพอดี
     while (current < stop) {
         slots.push(current.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
         current.setMinutes(current.getMinutes() + 30);
@@ -36,7 +39,7 @@ const Appointment = () => {
         departmentId: '',
         doctorId: '',
         insuranceId: '',
-        appointDate: '',
+        appointDate: null, // 🟢 2. เปลี่ยนค่าเริ่มต้นเป็น null เพื่อใช้กับ DatePicker
         appointTime: '',
         symptoms: ''
     });
@@ -44,7 +47,6 @@ const Appointment = () => {
     const [loading, setLoading] = useState(false);
     const [successQueue, setSuccessQueue] = useState(null);
 
-    // 1. ดักจับข้อมูล State ที่ส่งมาจากหน้า Doctors.jsx (ทำงานครั้งเดียวตอนโหลดหน้า)
     useEffect(() => {
         if (location.state && location.state.selectedDepartmentId) {
             setFormData(prev => ({
@@ -52,13 +54,10 @@ const Appointment = () => {
                 departmentId: location.state.selectedDepartmentId,
                 doctorId: location.state.selectedDoctorId || ''
             }));
-            
-            // เคลียร์ state ใน history ออก ป้องกันการกด Refresh แล้วค่าค้าง
             window.history.replaceState({}, document.title);
         }
     }, [location]);
 
-    // 2. เช็คสิทธิ์และดึงข้อมูลแผนก
     useEffect(() => {
         const token = localStorage.getItem('token');
         const patientId = localStorage.getItem('patientId');
@@ -75,18 +74,17 @@ const Appointment = () => {
             .catch(err => console.error('Error fetching departments:', err));
     }, [navigate]);
 
-    // 3. ดึงข้อมูลหมอ เมื่อผู้ใช้เลือกแผนก หรือเมื่อมีการรับค่าจากหน้า Doctors
     useEffect(() => {
         if (formData.departmentId) {
             fetch(`${API_BASE_URL}/departments/${formData.departmentId}/doctors`)
                 .then(res => res.json())
                 .then(data => {
                     setDoctors(data);
-                    // เช็คว่าถ้าไม่มีการตั้งค่าหมอไว้ล่วงหน้า (กรณีเลือกเองในหน้าจอง) ค่อยรีเซ็ตค่า
                     if (!location.state?.selectedDoctorId) {
                         setFormData(prev => ({ ...prev, doctorId: prev.doctorId || '' }));
                     }
                     setDoctorInfo(null);
+                    setFormData(prev => ({ ...prev, appointDate: null, appointTime: '' })); // รีเซ็ตวันเวลาเมื่อเปลี่ยนแผนก
                 })
                 .catch(err => console.error('Error fetching doctors:', err));
         } else {
@@ -94,34 +92,36 @@ const Appointment = () => {
         }
     }, [formData.departmentId, location.state]);
 
-    // 4. ดึงข้อมูลตารางเวลาและความเชี่ยวชาญ เมื่อเลือกหมอ
     useEffect(() => {
         if (formData.doctorId) {
             fetch(`${API_BASE_URL}/doctors/${formData.doctorId}/info`)
                 .then(res => res.json())
-                .then(data => setDoctorInfo(data))
+                .then(data => {
+                    setDoctorInfo(data);
+                    setFormData(prev => ({ ...prev, appointDate: null, appointTime: '' })); // รีเซ็ตวันเวลาเมื่อเปลี่ยนหมอ
+                })
                 .catch(err => console.error('Error fetching doctor info:', err));
         } else {
             setDoctorInfo(null);
         }
     }, [formData.doctorId]);
 
-    // 5. สร้างช่วงเวลา (แก้ไขให้เทียบกับวันภาษาไทย)
+    // 🟢 3. ดึงวันที่หมอทำงานออกมาเป็น Array ตัวเลข (0 = อาทิตย์, 1 = จันทร์, ...)
+    const getWorkingDays = () => {
+        if (!doctorInfo || !doctorInfo.schedules) return [];
+        const dayMap = { 'อาทิตย์': 0, 'Sunday': 0, 'จันทร์': 1, 'Monday': 1, 'อังคาร': 2, 'Tuesday': 2, 'พุธ': 3, 'Wednesday': 3, 'พฤหัสบดี': 4, 'Thursday': 4, 'ศุกร์': 5, 'Friday': 5, 'เสาร์': 6, 'Saturday': 6 };
+        return doctorInfo.schedules.map(s => dayMap[s.Day_of_Week.trim()]);
+    };
+    const workingDays = getWorkingDays();
+
+    // สร้างช่วงเวลา
     useEffect(() => {
         if (formData.appointDate && doctorInfo?.schedules) {
-            // แยกวันที่เพื่อเลี่ยงปัญหา Timezone
-            const [year, month, day] = formData.appointDate.split('-').map(Number);
-            const selectedDate = new Date(year, month - 1, day);
-            const dayIndex = selectedDate.getDay();
-
-            // เปลี่ยนจากเทียบวันภาษาอังกฤษเป็นภาษาไทย
+            const dayIndex = formData.appointDate.getDay();
             const dayNamesTh = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
             const targetDay = dayNamesTh[dayIndex];
 
-            // ค้นหาตารางงานของหมอในวันที่เลือก
-            const daySchedule = doctorInfo.schedules.find(s =>
-                s.Day_of_Week?.trim() === targetDay
-            );
+            const daySchedule = doctorInfo.schedules.find(s => s.Day_of_Week?.trim() === targetDay);
 
             if (daySchedule?.Start_Time && daySchedule?.End_Time) {
                 const slots = generateTimeSlots(daySchedule.Start_Time, daySchedule.End_Time);
@@ -129,7 +129,6 @@ const Appointment = () => {
             } else {
                 setAvailableTimeSlots([]);
             }
-
             setFormData(prev => ({ ...prev, appointTime: '' }));
         } else {
             setAvailableTimeSlots([]);
@@ -143,19 +142,24 @@ const Appointment = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (!formData.appointTime) {
-            alert('กรุณาเลือกเวลาที่ต้องการนัดหมาย');
+        if (!formData.appointTime || !formData.appointDate) {
+            alert('กรุณาเลือกวันที่และเวลาที่ต้องการนัดหมาย');
             return;
         }
 
         setLoading(true);
 
-        // ตรวจสอบและแปลงค่า symptoms เป็น null หากไม่ได้กรอกข้อมูล
+        // 🟢 4. แปลง Date Object กลับเป็น string รูปแบบ YYYY-MM-DD เพื่อส่งไป Backend
+        const year = formData.appointDate.getFullYear();
+        const month = String(formData.appointDate.getMonth() + 1).padStart(2, '0');
+        const day = String(formData.appointDate.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+
         const payload = {
             patientId: localStorage.getItem('patientId'),
             doctorId: formData.doctorId,
             insuranceId: useInsurance ? formData.insuranceId : '',
-            appointDate: formData.appointDate,
+            appointDate: formattedDate,
             appointTime: formData.appointTime,
             symptoms: formData.symptoms ? formData.symptoms : null 
         };
@@ -191,7 +195,7 @@ const Appointment = () => {
         setSuccessQueue(null);
         setFormData({
             departmentId: '', doctorId: '', insuranceId: '',
-            appointDate: '', appointTime: '', symptoms: ''
+            appointDate: null, appointTime: '', symptoms: ''
         });
         setUseInsurance(false);
         setDoctorInfo(null);
@@ -199,28 +203,6 @@ const Appointment = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    // ==========================================
-    // 🎨 ตัวแปรจัดการสีของ Input วันที่
-    // ==========================================
-    const isDateSelected = !!formData.appointDate;
-    const hasDoctorInfo = !!doctorInfo;
-    const isDoctorAvailable = availableTimeSlots.length > 0;
-
-    let dateInputClasses = "w-full p-3 rounded-xl border outline-none text-sm md:text-base transition-colors ";
-    if (isDateSelected && hasDoctorInfo) {
-        if (isDoctorAvailable) {
-            // สีเขียวเมื่อหมอทำการ
-            dateInputClasses += "border-green-500 bg-green-50 focus:ring-2 focus:ring-green-500 text-green-800";
-        } else {
-            // สีแดงเมื่อหมอไม่ทำการ
-            dateInputClasses += "border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 text-red-800";
-        }
-    } else {
-        // สีปกติ
-        dateInputClasses += "border-gray-200 bg-white focus:ring-2 focus:ring-blue-500";
-    }
-
-    // แสดงหน้าจอเมื่อจองสำเร็จ
     if (successQueue) {
         return (
             <div className="max-w-md mx-4 sm:mx-auto mt-6 md:mt-10 p-6 md:p-8 bg-white rounded-3xl shadow-sm border border-green-100 text-center animate-fade-in">
@@ -297,31 +279,41 @@ const Appointment = () => {
 
                 {/* วันและเวลา */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                    <div>
+                    <div className="flex flex-col">
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                             <Calendar size={16} /> วันที่นัดหมาย <span className="text-red-500">*</span>
                         </label>
-                        {/* 🟢/🔴 แก้ไขคลาสของ Input ให้เปลี่ยนสีตามเงื่อนไข */}
-                        <input 
-                            type="date" 
-                            name="appointDate" 
-                            value={formData.appointDate} 
-                            onChange={handleChange} 
-                            required 
-                            className={dateInputClasses} 
-                        />
                         
-                        {/* 🟢/🔴 แสดงข้อความอธิบายใต้ช่องเลือกวัน */}
-                        {isDateSelected && hasDoctorInfo && (
-                            isDoctorAvailable ? (
-                                <div className="flex items-center gap-1 text-green-600 text-xs md:text-sm mt-2 font-medium">
-                                    <CheckCircle size={14} /> แพทย์ทำการในวันที่เลือก
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-1 text-red-500 text-xs md:text-sm mt-2 font-medium">
-                                    <AlertCircle size={14} /> แพทย์ไม่เข้าตรวจในวันดังกล่าว
-                                </div>
-                            )
+                        {/* 🟢 5. ใช้งาน DatePicker พร้อมตกแต่งสีวันทำการ (เขียว/แดง) ในปฏิทิน */}
+                        <DatePicker
+                            selected={formData.appointDate}
+                            onChange={(date) => setFormData({ ...formData, appointDate: date })}
+                            minDate={new Date()} // ป้องกันการเลือกวันในอดีต
+                            dateFormat="dd/MM/yyyy"
+                            placeholderText="-- เลือกวันที่ --"
+                            disabled={!formData.doctorId} // ต้องเลือกหมอก่อนถึงจะเปิดปฏิทินได้
+                            className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm md:text-base disabled:bg-gray-50 bg-white"
+                            wrapperClassName="w-full"
+                            
+                            // 🎨 ตกแต่งสีตัวเลขข้างในปฏิทิน
+                            dayClassName={(date) => {
+                                if (!formData.doctorId || workingDays.length === 0) return undefined;
+                                const day = date.getDay();
+                                if (workingDays.includes(day)) {
+                                    return "bg-green-100 text-green-800 font-bold rounded-full hover:bg-green-200"; // สีเขียว = วันทำงาน
+                                }
+                                return "bg-red-50 text-red-400 opacity-60 rounded-full"; // สีแดงจางๆ = วันไม่ทำงาน
+                            }}
+                            
+                            // 🔒 บล็อกไม่ให้กดจองวันสีแดงได้เลย เพื่อป้องกันคนไข้กดผิดวัน
+                            filterDate={(date) => {
+                                if (!formData.doctorId || workingDays.length === 0) return true;
+                                return workingDays.includes(date.getDay());
+                            }}
+                        />
+
+                        {!formData.doctorId && (
+                            <p className="text-xs text-gray-500 mt-2">กรุณาเลือกแพทย์ก่อนเลือกวันที่</p>
                         )}
                     </div>
 
@@ -369,7 +361,7 @@ const Appointment = () => {
                     <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" placeholder="อธิบายอาการ... (ไม่บังคับ)" className="w-full p-3 rounded-xl border border-gray-200 outline-none resize-none text-sm md:text-base"></textarea>
                 </div>
 
-                <button type="submit" disabled={loading || (formData.appointDate && availableTimeSlots.length === 0)} className={`w-full py-3 md:py-4 rounded-xl font-bold text-white transition-all text-base md:text-lg ${ (loading || (formData.appointDate && availableTimeSlots.length === 0)) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg' }`}>
+                <button type="submit" disabled={loading || !formData.appointDate || availableTimeSlots.length === 0} className={`w-full py-3 md:py-4 rounded-xl font-bold text-white transition-all text-base md:text-lg ${ (loading || !formData.appointDate || availableTimeSlots.length === 0) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg' }`}>
                     {loading ? 'กำลังดำเนินการ...' : 'ยืนยันการจองคิว'}
                 </button>
             </form>
