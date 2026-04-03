@@ -199,6 +199,27 @@ const Appointment = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    // ==========================================
+    // 🎨 ตัวแปรจัดการสีของ Input วันที่
+    // ==========================================
+    const isDateSelected = !!formData.appointDate;
+    const hasDoctorInfo = !!doctorInfo;
+    const isDoctorAvailable = availableTimeSlots.length > 0;
+
+    let dateInputClasses = "w-full p-3 rounded-xl border outline-none text-sm md:text-base transition-colors ";
+    if (isDateSelected && hasDoctorInfo) {
+        if (isDoctorAvailable) {
+            // สีเขียวเมื่อหมอทำการ
+            dateInputClasses += "border-green-500 bg-green-50 focus:ring-2 focus:ring-green-500 text-green-800";
+        } else {
+            // สีแดงเมื่อหมอไม่ทำการ
+            dateInputClasses += "border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 text-red-800";
+        }
+    } else {
+        // สีปกติ
+        dateInputClasses += "border-gray-200 bg-white focus:ring-2 focus:ring-blue-500";
+    }
+
     // แสดงหน้าจอเมื่อจองสำเร็จ
     if (successQueue) {
         return (
@@ -280,7 +301,28 @@ const Appointment = () => {
                         <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                             <Calendar size={16} /> วันที่นัดหมาย <span className="text-red-500">*</span>
                         </label>
-                        <input type="date" name="appointDate" value={formData.appointDate} onChange={handleChange} required className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm md:text-base" />
+                        {/* 🟢/🔴 แก้ไขคลาสของ Input ให้เปลี่ยนสีตามเงื่อนไข */}
+                        <input 
+                            type="date" 
+                            name="appointDate" 
+                            value={formData.appointDate} 
+                            onChange={handleChange} 
+                            required 
+                            className={dateInputClasses} 
+                        />
+                        
+                        {/* 🟢/🔴 แสดงข้อความอธิบายใต้ช่องเลือกวัน */}
+                        {isDateSelected && hasDoctorInfo && (
+                            isDoctorAvailable ? (
+                                <div className="flex items-center gap-1 text-green-600 text-xs md:text-sm mt-2 font-medium">
+                                    <CheckCircle size={14} /> แพทย์ทำการในวันที่เลือก
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-1 text-red-500 text-xs md:text-sm mt-2 font-medium">
+                                    <AlertCircle size={14} /> แพทย์ไม่เข้าตรวจในวันดังกล่าว
+                                </div>
+                            )
+                        )}
                     </div>
 
                     <div>
@@ -293,11 +335,6 @@ const Appointment = () => {
                                 <option key={slot} value={slot}>{slot} น.</option>
                             ))}
                         </select>
-                        {formData.appointDate && doctorInfo && availableTimeSlots.length === 0 && (
-                            <div className="flex items-center gap-1 text-red-500 text-xs md:text-sm mt-2 font-medium">
-                                <AlertCircle size={14} /> แพทย์ไม่เข้าตรวจในวันดังกล่าว
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -329,7 +366,6 @@ const Appointment = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
                         <FileText size={16} /> อาการเบื้องต้น
                     </label>
-                    {/* ไม่ใส่ required และเปลี่ยน placeholder */}
                     <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" placeholder="อธิบายอาการ... (ไม่บังคับ)" className="w-full p-3 rounded-xl border border-gray-200 outline-none resize-none text-sm md:text-base"></textarea>
                 </div>
 
