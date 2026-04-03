@@ -150,7 +150,7 @@ const Appointment = () => {
 
         setLoading(true);
 
-        // 🟢 แก้ไข: ตรวจสอบและแปลงค่า symptoms เป็น null หากไม่ได้กรอกข้อมูล
+        // ตรวจสอบและแปลงค่า symptoms เป็น null หากไม่ได้กรอกข้อมูล
         const payload = {
             patientId: localStorage.getItem('patientId'),
             doctorId: formData.doctorId,
@@ -230,7 +230,7 @@ const Appointment = () => {
                 {/* แผนกและแพทย์ */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">แผนกที่ต้องการตรวจ</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">แผนกที่ต้องการตรวจ <span className="text-red-500">*</span></label>
                         <select name="departmentId" value={formData.departmentId} onChange={handleChange} required className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white text-sm md:text-base">
                             <option value="">-- เลือกแผนก --</option>
                             {departments.map(dep => (
@@ -240,7 +240,7 @@ const Appointment = () => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">แพทย์</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">แพทย์ <span className="text-red-500">*</span></label>
                         <select name="doctorId" value={formData.doctorId} onChange={handleChange} required disabled={!formData.departmentId} className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-gray-50 text-sm md:text-base">
                             <option value="">-- เลือกแพทย์ --</option>
                             {doctors.map(doc => (
@@ -277,12 +277,16 @@ const Appointment = () => {
                 {/* วันและเวลา */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"><Calendar size={16} /> วันที่นัดหมาย</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Calendar size={16} /> วันที่นัดหมาย <span className="text-red-500">*</span>
+                        </label>
                         <input type="date" name="appointDate" value={formData.appointDate} onChange={handleChange} required className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm md:text-base" />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"><Clock size={16} /> เวลา</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Clock size={16} /> เวลา <span className="text-red-500">*</span>
+                        </label>
                         <select name="appointTime" value={formData.appointTime} onChange={handleChange} required disabled={availableTimeSlots.length === 0} className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white disabled:bg-gray-50 text-sm md:text-base">
                             <option value="">-- เลือกเวลา --</option>
                             {availableTimeSlots.map(slot => (
@@ -313,14 +317,19 @@ const Appointment = () => {
                         </label>
                     </div>
                     {useInsurance && (
-                        <input type="text" name="insuranceId" value={formData.insuranceId} onChange={handleChange} required placeholder="โปรดระบุประกันสังคม, เลขกรมธรรม์..." className="w-full p-3 rounded-xl border border-gray-300 outline-none text-sm md:text-base mt-2" />
+                        <div className="relative mt-2">
+                            <input type="text" name="insuranceId" value={formData.insuranceId} onChange={handleChange} required placeholder="โปรดระบุประกันสังคม, เลขกรมธรรม์..." className="w-full p-3 pr-8 rounded-xl border border-gray-300 outline-none text-sm md:text-base" />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg">*</span>
+                        </div>
                     )}
                 </div>
 
                 {/* อาการ */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2"><FileText size={16} /> อาการเบื้องต้น</label>
-                    {/* 🟢 แก้ไข: นำ required ออก และเปลี่ยน placeholder */}
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                        <FileText size={16} /> อาการเบื้องต้น
+                    </label>
+                    {/* ไม่ใส่ required และเปลี่ยน placeholder */}
                     <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" placeholder="อธิบายอาการ... (ไม่บังคับ)" className="w-full p-3 rounded-xl border border-gray-200 outline-none resize-none text-sm md:text-base"></textarea>
                 </div>
 
