@@ -479,25 +479,88 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
 });
 
 // ==========================================
-// 🛠️ API ชั่วคราว: เพิ่มคอลัมน์ Location และ Phone ในตาราง department
+// 🛠️ API: อัปเดต Location/Phone โดยยึด Database เป็นหลัก (ผูกแผนกย่อยอัตโนมัติ)
 // ==========================================
-app.get('/api/add-dept-columns', async (req, res) => {
-    try {
-        // สั่งเพิ่ม 2 คอลัมน์พร้อมกัน: 
-        // - Location (สถานที่ตั้ง) เผื่อยาวเลยให้ขนาด 255
-        // - Phone (เบอร์โทร) ให้ขนาด 50
-        const sql = `
-            ALTER TABLE department 
-            ADD Location VARCHAR(100), 
-            ADD Phone VARCHAR(30);
-        `;
+app.get('/api/seed-locations', async (req, res) => {
+    // ข้อมูลแผนกหลักจากไฟล์ CSV (คัดมาเฉพาะตัวที่เป็นแผนกแม่ของ 45 แผนกใน DB)
+    const baseLocations = [
+        // 📞 รายการที่ต้องการให้เพิ่มใหม่
+        { name: 'เบอร์ติดต่อกลาง (Call Center)', location: '-', phone: '1474 หรือ 02-419-1000', isNew: true },
         
-        await db.query(sql);
-        res.status(200).send('✅ สำเร็จ! เพิ่มคอลัมน์ Location และ Phone ลงในตาราง department เรียบร้อยแล้ว 🏥');
+        // 🏥 รายการแผนกหลักที่จะถูกดึงไปอัปเดตให้ทั้ง "แผนกหลัก" และ "แผนกย่อย"
+        { name: 'ศูนย์ทางเดินอาหารและตับ', location: 'ชั้น 4 โซน A', phone: '02-419-1000 ต่อ 4111' },
+        { name: 'ศูนย์นรีเวช', location: 'ชั้น 2 โซน E', phone: '02-419-1000 ต่อ 2111' },
+        { name: 'ศูนย์ตา', location: 'ชั้น 4 โซน A', phone: '02-419-1000 ต่อ 4133-4' },
+        { name: 'ศูนย์หู คอ จมูก', location: 'ชั้น 3 โซน D', phone: '02-419-1000 ต่อ 3431-2' },
+        { name: 'ศูนย์ทันตกรรม', location: 'ชั้น 3 โซน A', phone: '02-419-1000 ต่อ 3122-3' },
+        { name: 'ศูนย์เด็ก', location: 'ชั้น 3 โซน E', phone: '02-419-1000 ต่อ 3111' },
+        { name: 'ศูนย์ระบบการหายใจ', location: 'ชั้น 3 โซน C', phone: '02-419-1000 ต่อ 3332' },
+        { name: 'ศูนย์อายุรกรรม', location: 'ชั้น 2 โซน D', phone: '02-419-1000 ต่อ 2411-2' },
+        { name: 'คลินิกตรวจสุขภาพ', location: 'ชั้น 4 โซน E', phone: '02-419-1000 ต่อ 4112' },
+        { name: 'ศูนย์มะเร็ง', location: 'ชั้น 1 โซน E', phone: '02-419-1000 ต่อ 1133' },
+        { name: 'ศูนย์โรคไต', location: 'ชั้น 6 โซน C', phone: '02-419-1000 ต่อ 6611' },
+        { name: 'ศูนย์เอกซเรย์', location: 'ชั้น 1 โซน D', phone: '02-419-1000 ต่อ 1411' },
+        { name: 'ศูนย์ออร์โธปิดิกส์', location: 'ชั้น 2 โซน A', phone: '02-419-1000 ต่อ 2121-2' },
+        { name: 'ศูนย์ศัลยกรรม', location: 'ชั้น 2 โซน E', phone: '02-419-1000 ต่อ 2131-2' },
+        { name: 'ศูนย์โรคภูมิแพ้', location: 'ชั้น 3 โซน D', phone: '02-419-1000 ต่อ 3411-2' },
+        { name: 'ศูนย์ทางเดินปัสสาวะ', location: 'ชั้น 4 โซน A', phone: '02-419-1000 ต่อ 4124' },
+        { name: 'ศูนย์เวชศาสตร์ฟื้นฟู', location: 'ชั้น 3 โซน C', phone: '02-419-1000 ต่อ 3311-2' },
+        { name: 'คลินิกเบาหวาน ไทรอยด์ และต่อมไร้ท่อ', location: 'ชั้น 4 โซน D', phone: '02-419-1000 ต่อ 4411' },
+        { name: 'ศูนย์หัวใจ', location: 'ชั้น 4 โซน C', phone: '02-419-1000 ต่อ 4311-3' },
+        { name: 'ศูนย์ผิวหนังและศัลยกรรมตกแต่ง', location: 'ชั้น 3 โซน A', phone: '02-419-1000 ต่อ 3131-2' },
+        { name: 'ศูนย์รักษาภาวะสายตาผิดปกติด้วยเลเซอร์', location: 'ชั้น 4 โซน A', phone: '02-419-1000 ต่อ 4141-2' },
+        { name: 'คลินิกฟื้นฟูหัวใจ', location: 'ชั้น 4 โซน C', phone: '02-419-1000 ต่อ 4314' }
+    ];
+
+    try {
+        // 1. เพิ่มคอลัมน์ (ถ้ายังไม่เคยมี)
+        try {
+            await db.query('ALTER TABLE department ADD Location VARCHAR(255), ADD Phone VARCHAR(50);');
+            console.log('✅ สร้างคอลัมน์ Location และ Phone สำเร็จ');
+        } catch (err) {
+            console.log('ℹ️ คอลัมน์ Location และ Phone มีอยู่แล้ว ข้ามการสร้าง');
+        }
+
+        let updatedRowsCount = 0;
+        
+        // 2. วนลูปเพื่ออัปเดตข้อมูลให้แผนกต่างๆ
+        for (let i = 0; i < baseLocations.length; i++) {
+            const baseDept = baseLocations[i];
+            
+            if (baseDept.isNew) {
+                // สำหรับ Call Center ตรวจสอบก่อนว่าเคยสร้างรึยัง
+                const [checkExist] = await db.query('SELECT * FROM department WHERE Department_Name = ?', [baseDept.name]);
+                if (checkExist.length === 0) {
+                    await db.query(
+                        'INSERT INTO department (Department_ID, Department_Name, Location, Phone) VALUES (?, ?, ?, ?)',
+                        ['D046', baseDept.name, baseDept.location, baseDept.phone] // ใช้รหัส D046 ต่อจาก D045
+                    );
+                } else {
+                    await db.query(
+                        'UPDATE department SET Location = ?, Phone = ? WHERE Department_Name = ?',
+                        [baseDept.location, baseDept.phone, baseDept.name]
+                    );
+                }
+            } else {
+                // 🔥 หัวใจสำคัญ: ใช้คำสั่ง LIKE ควบคู่กับ % 
+                // เช่น ถ้าชื่อคือ 'ศูนย์เด็ก' มันจะอัปเดตให้ทั้ง 'ศูนย์เด็ก' และ 'ศูนย์เด็ก (โรคข้อและรูมาติสซั่ม)' ทันที!
+                const queryStr = `${baseDept.name}%`;
+                const [result] = await db.query(
+                    'UPDATE department SET Location = ?, Phone = ? WHERE Department_Name LIKE ?',
+                    [baseDept.location, baseDept.phone, queryStr]
+                );
+                
+                updatedRowsCount += result.affectedRows; 
+            }
+        }
+        
+        // หมายเหตุ: แผนกอย่าง 'D017 ศูนย์เวชศาสตร์นิวเคลียร์' และ 'D030 ศ.คลินิก...' 
+        // จะไม่ถูกอัปเดตข้อมูล เพราะไม่มีข้อมูลระบุในไฟล์ CSV ซึ่งตรงตามที่คุณต้องการ
+        
+        res.status(200).send(`✅ สำเร็จ! อัปเดตข้อมูลเสร็จสิ้น ครอบคลุมแผนกในฐานข้อมูลรวมทั้งหมด ${updatedRowsCount} รายการ และเพิ่ม Call Center สำเร็จครับ! 🚀`);
     } catch (error) {
-        // ถ้ามันเคยถูกสร้างไปแล้ว มันจะพ่น Error ออกมา เราก็จับมันไว้ครับ
-        console.error('Add Column Error:', error);
-        res.status(500).send(`❌ เกิดข้อผิดพลาด (หรืออาจจะเคยเพิ่มไปแล้ว): ${error.message}`);
+        console.error('Seed Database Error:', error);
+        res.status(500).send(`❌ เกิดข้อผิดพลาด: ${error.message}`);
     }
 });
 
