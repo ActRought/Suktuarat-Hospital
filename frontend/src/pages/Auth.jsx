@@ -115,40 +115,48 @@ const Auth = () => {
                     <>
                         <div className="relative">
                             <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                            <input type="text" name="Name" required placeholder="ชื่อ-นามสกุล" value={formData.Name} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <input type="text" name="Name" required placeholder="ชื่อ-นามสกุล" value={formData.Name} onChange={handleChange} className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg">*</span>
                         </div>
                         <div className="relative">
                             <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                            <input type="text" name="IDCard13" required maxLength="13" placeholder="เลขบัตรประชาชน 13 หลัก" value={formData.IDCard13} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <input type="text" name="IDCard13" required maxLength="13" placeholder="เลขบัตรประชาชน 13 หลัก" value={formData.IDCard13} onChange={handleChange} className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg">*</span>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="relative">
                                 <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                <select name="Gender" value={formData.Gender} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                                <select name="Gender" value={formData.Gender} onChange={handleChange} className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none bg-white">
                                     <option value="ชาย">ชาย</option>
                                     <option value="หญิง">หญิง</option>
                                     <option value="อื่นๆ">อื่นๆ</option>
                                 </select>
+                                {/* ขยับ * สำหรับ Select ให้ห่างจากลูกศร Dropdown นิดหน่อย */}
+                                <span className="absolute right-6 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg pointer-events-none">*</span>
                             </div>
                             <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                                <input type="date" name="Birthday" required value={formData.Birthday} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                                <input type="date" name="Birthday" required value={formData.Birthday} onChange={handleChange} className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg pointer-events-none">*</span>
                             </div>
                         </div>
                         <div className="relative">
                             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                            <input type="tel" name="Phone" required placeholder="เบอร์โทรศัพท์" value={formData.Phone} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <input type="tel" name="Phone" required placeholder="เบอร์โทรศัพท์" value={formData.Phone} onChange={handleChange} className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg">*</span>
                         </div>
                     </>
                 )}
 
                 <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                    <input type="email" name="Email" required placeholder="อีเมล" value={formData.Email} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <input type="email" name="Email" required placeholder="อีเมล" value={formData.Email} onChange={handleChange} className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg">*</span>
                 </div>
                 <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                    <input type="password" name="Password" required placeholder="รหัสผ่าน" value={formData.Password} onChange={handleChange} className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <input type="password" name="Password" required placeholder="รหัสผ่าน" value={formData.Password} onChange={handleChange} className="w-full pl-10 pr-8 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none" />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 font-bold text-lg">*</span>
                 </div>
 
                 <button
