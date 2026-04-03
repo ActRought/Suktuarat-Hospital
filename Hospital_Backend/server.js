@@ -479,6 +479,29 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
 });
 
 // ==========================================
+// 🛠️ API ชั่วคราว: เพิ่มคอลัมน์ Location และ Phone ในตาราง department
+// ==========================================
+app.get('/api/add-dept-columns', async (req, res) => {
+    try {
+        // สั่งเพิ่ม 2 คอลัมน์พร้อมกัน: 
+        // - Location (สถานที่ตั้ง) เผื่อยาวเลยให้ขนาด 255
+        // - Phone (เบอร์โทร) ให้ขนาด 50
+        const sql = `
+            ALTER TABLE department 
+            ADD Location VARCHAR(100), 
+            ADD Phone VARCHAR(30);
+        `;
+        
+        await db.query(sql);
+        res.status(200).send('✅ สำเร็จ! เพิ่มคอลัมน์ Location และ Phone ลงในตาราง department เรียบร้อยแล้ว 🏥');
+    } catch (error) {
+        // ถ้ามันเคยถูกสร้างไปแล้ว มันจะพ่น Error ออกมา เราก็จับมันไว้ครับ
+        console.error('Add Column Error:', error);
+        res.status(500).send(`❌ เกิดข้อผิดพลาด (หรืออาจจะเคยเพิ่มไปแล้ว): ${error.message}`);
+    }
+});
+
+// ==========================================
 // 🚀 Start Server
 // ==========================================
 const PORT = process.env.PORT || 5000;
