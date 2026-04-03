@@ -96,12 +96,29 @@ app.post('/api/register', async (req, res) => {
 
         await db.query('START TRANSACTION');
 
-        const [patientResult] = await db.execute(
-            'INSERT INTO patient (patient_name, IDCard13, Gender, Birthday, Phone, Email) VALUES (?, ?, ?, ?, ?, ?)',
-            [Name, IDCard13, Gender, Birthday, Phone, Email]
+        // 🔥 สร้างรหัส PatientID ใหม่รูปแบบ (SR-XXXXXXX) 🔥
+        const [lastPatient] = await db.execute(
+            'SELECT PatientID FROM patient ORDER BY PatientID DESC LIMIT 1 FOR UPDATE'
         );
 
-        const newPatientId = patientResult.insertId;
+        let nextNumber = 1;
+        if (lastPatient.length > 0) {
+            const lastId = lastPatient[0].PatientID;
+            if (lastId && lastId.toString().startsWith('SR-')) {
+                nextNumber = parseInt(lastId.substring(3)) + 1;
+            } else if (!isNaN(lastId)) {
+                nextNumber = parseInt(lastId) + 1;
+            }
+        }
+        
+        // เติม 0 ให้ครบ 7 หลัก แล้วต่อท้าย 'SR-'
+        const newPatientId = `SR-${nextNumber.toString().padStart(7, '0')}`;
+
+        // เพิ่ม newPatientId เข้าไปในคำสั่ง INSERT
+        await db.execute(
+            'INSERT INTO patient (PatientID, patient_name, IDCard13, Gender, Birthday, Phone, Email) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [newPatientId, Name, IDCard13, Gender, Birthday, Phone, Email]
+        );
 
         await db.execute(
             'INSERT INTO account (PatientID, Email, PASSWORD) VALUES (?, ?, ?)',
@@ -500,8 +517,6 @@ app.put('/api/appointments/:id/cancel', verifyAdmin, async (req, res) => {
         res.status(500).json({ message: 'เกิดข้อผิดพลาดในการยกเลิกคิว' });
     }
 });
-
-
 
 // ==========================================
 // 🚀 Start Server
