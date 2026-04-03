@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; 
-import { Users, Stethoscope, Award, CalendarCheck, ChevronRight, ChevronDown } from 'lucide-react';
+// 🟢 1. นำเข้า MapPin และ Phone เพิ่มเติม
+import { Users, Stethoscope, Award, CalendarCheck, ChevronRight, ChevronDown, MapPin, Phone } from 'lucide-react';
 
 // ==========================================
 // 🔗 ตั้งค่า API URL (Backend บน Render)
@@ -24,9 +25,12 @@ const Doctors = () => {
                 
                 const formattedDepts = [
                     { id: 'all', name: 'แพทย์ทั้งหมด' },
+                    // 🟢 2. เพิ่มการเก็บ Location และ Phone จาก API
                     ...deptData.map(d => ({ 
                         id: d.Department_ID.toString(), 
-                        name: d.Department_Name 
+                        name: d.Department_Name,
+                        location: d.Location, 
+                        phone: d.Phone
                     }))
                 ];
                 setDepartments(formattedDepts);
@@ -60,9 +64,8 @@ const Doctors = () => {
         ? doctorsData
         : doctorsData.filter(doc => doc.departmentId?.toString() === selectedDept);
 
-    // 🟢 ฟังก์ชันสำหรับรับมือตอนกดปุ่มนัดหมายหมอ
+    // ฟังก์ชันสำหรับรับมือตอนกดปุ่มนัดหมายหมอ
     const handleBookAppointment = (doc) => {
-        // สั่งให้เด้งกลับไปที่หน้าแรก "/" พร้อมแนบ State (ข้อมูลแผนกและหมอ) ไปด้วย
         navigate('/', { 
             state: { 
                 selectedDepartmentId: doc.departmentId, 
@@ -70,6 +73,28 @@ const Doctors = () => {
             } 
         });
     };
+
+    // 🟢 3. Logic สำหรับดึงข้อมูลสถานที่และเบอร์โทรมาแสดง
+    let displayContact = null;
+    if (selectedDept === 'all') {
+        // หาข้อมูล Call Center จาก departments (ถ้ามี) ถ้าไม่มีให้ใช้ค่าเริ่มต้น
+        const callCenter = departments.find(d => d.name.includes('Call Center') || d.id === 'D046');
+        displayContact = {
+            title: 'เบอร์ติดต่อกลาง (Call Center)',
+            location: callCenter?.location || '-',
+            phone: callCenter?.phone || '1474 หรือ 02-419-1000'
+        };
+    } else {
+        const dept = departments.find(d => d.id === selectedDept);
+        // เช็คว่ามีข้อมูลแผนก และ (มีสถานที่ หรือ มีเบอร์โทร) อย่างน้อย 1 อย่างถึงจะให้แสดง
+        if (dept && (dept.location || dept.phone)) {
+            displayContact = {
+                title: dept.name,
+                location: dept.location,
+                phone: dept.phone
+            };
+        }
+    }
 
     return (
         <div className="max-w-7xl mx-auto py-4 md:py-6 animate-fade-in px-4">
@@ -86,7 +111,7 @@ const Doctors = () => {
             </div>
 
             {/* แถบเลือกแผนก */}
-            <div className="mb-6 md:mb-10 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100">
+            <div className="mb-4 md:mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-gray-100">
                 <div className="flex items-center gap-2">
                     <h3 className="text-gray-700 font-bold text-base md:text-lg">ค้นหาแพทย์ตามแผนก</h3>
                 </div>
@@ -110,7 +135,30 @@ const Doctors = () => {
                 </div>
             </div>
 
-            {/* การแสดงผลข้อมูล */}
+            {/* 🟢 4. การแสดงผลข้อมูลสถานที่และเบอร์โทร (จะแสดงก็ต่อเมื่อมีข้อมูล) */}
+            {displayContact && (displayContact.location || displayContact.phone) && (
+                <div className="mb-6 md:mb-8 bg-blue-50 border border-blue-100 rounded-2xl p-4 md:p-6 shadow-sm animate-fade-in">
+                    <h3 className="text-blue-800 font-bold text-lg md:text-xl mb-3 md:mb-4 border-b border-blue-200 pb-2">
+                        {displayContact.title}
+                    </h3>
+                    <div className="flex flex-col md:flex-row gap-4 md:gap-8 text-sm md:text-base text-gray-700">
+                        {displayContact.location && displayContact.location !== '-' && (
+                            <div className="flex items-center gap-2.5 bg-white px-4 py-2.5 rounded-xl flex-1 border border-blue-100 shadow-sm">
+                                <MapPin size={20} className="text-blue-500 shrink-0" />
+                                <span><strong className="text-blue-900">สถานที่:</strong> {displayContact.location}</span>
+                            </div>
+                        )}
+                        {displayContact.phone && displayContact.phone !== '-' && (
+                            <div className="flex items-center gap-2.5 bg-white px-4 py-2.5 rounded-xl flex-1 border border-blue-100 shadow-sm">
+                                <Phone size={20} className="text-blue-500 shrink-0" />
+                                <span><strong className="text-blue-900">ติดต่อ:</strong> {displayContact.phone}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* การแสดงผลข้อมูลรายชื่อแพทย์ */}
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-16 md:py-20 text-gray-400">
                     <div className="w-10 h-10 md:w-12 md:h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -120,7 +168,6 @@ const Doctors = () => {
                 filteredDoctors.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
                         {filteredDoctors.map((doc) => {
-                            // ใช้รูปโปรไฟล์เริ่มต้นหากไม่มีในฐานข้อมูล
                             const doctorName = doc.name || 'Unknown Doctor';
                             const defaultImage = `https://ui-avatars.com/api/?name=${encodeURIComponent(doctorName)}&background=0ea5e9&color=fff&size=128`;
 
@@ -151,7 +198,6 @@ const Doctors = () => {
                                         </div>
                                     </div>
 
-                                    {/* 🟢 เปลี่ยนจาก Link เป็น <button> และเรียกฟังก์ชัน handleBookAppointment */}
                                     <button 
                                         onClick={() => handleBookAppointment(doc)} 
                                         className="w-full flex items-center justify-center gap-2 bg-white border-2 border-blue-600 text-blue-600 py-2.5 md:py-3 rounded-xl font-bold hover:bg-blue-600 hover:text-white transition-all shadow-sm active:scale-95 text-sm md:text-base"
