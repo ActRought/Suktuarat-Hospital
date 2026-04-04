@@ -46,6 +46,7 @@ const Appointment = () => {
 
     const [loading, setLoading] = useState(false);
     const [successQueue, setSuccessQueue] = useState(null);
+    const [errorMessage, setErrorMessage] = useState(''); // 🔥 เพิ่ม State สำหรับเก็บข้อความแจ้งเตือนคิวเต็ม
 
     useEffect(() => {
         if (location.state && location.state.selectedDepartmentId) {
@@ -136,14 +137,16 @@ const Appointment = () => {
     }, [formData.appointDate, doctorInfo]);
 
     const handleChange = (e) => {
+        setErrorMessage(''); // 🔥 ล้าง Error เมื่อผู้ใช้แก้ไขข้อมูลใหม่ (เช่น เปลี่ยนเวลา)
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setErrorMessage(''); // ล้าง Error เก่าก่อนเริ่ม request ใหม่
         
         if (!formData.appointTime || !formData.appointDate) {
-            alert('กรุณาเลือกวันที่และเวลาที่ต้องการนัดหมาย');
+            setErrorMessage('กรุณาเลือกวันที่และเวลาที่ต้องการนัดหมาย');
             return;
         }
 
@@ -181,11 +184,13 @@ const Appointment = () => {
                 setSuccessQueue(data.queueNumber);
                 window.dispatchEvent(new Event('updateNotifications'));
             } else {
-                alert(data.message || 'เกิดข้อผิดพลาดในการจองคิว');
+                // 🔥 ถ้าระบบตีกลับมาเป็น Error (เช่น คิวเต็ม) ให้เก็บข้อความไปแสดง โดยไม่ต้องเคลียร์ Form
+                setErrorMessage(data.message || 'เกิดข้อผิดพลาดในการจองคิว');
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); // เลื่อนลงมาให้เห็น Error ชัดๆ
             }
         } catch (error) {
             console.error('Submit Error:', error);
-            alert('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+            setErrorMessage('ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
         } finally {
             setLoading(false);
         }
@@ -193,6 +198,7 @@ const Appointment = () => {
 
     const handleResetForm = () => {
         setSuccessQueue(null);
+        setErrorMessage('');
         setFormData({
             departmentId: '', doctorId: '', insuranceId: '',
             appointDate: null, appointTime: '', symptoms: ''
@@ -287,7 +293,10 @@ const Appointment = () => {
                         {/* 🟢 5. ใช้งาน DatePicker พร้อมตกแต่งสีวันทำการ (เขียว/แดง) ในปฏิทิน */}
                         <DatePicker
                             selected={formData.appointDate}
-                            onChange={(date) => setFormData({ ...formData, appointDate: date })}
+                            onChange={(date) => {
+                                setErrorMessage(''); // ล้าง Error เมื่อเปลี่ยนวัน
+                                setFormData({ ...formData, appointDate: date });
+                            }}
                             minDate={new Date()} // ป้องกันการเลือกวันในอดีต
                             dateFormat="dd/MM/yyyy"
                             placeholderText="-- เลือกวันที่ --"
@@ -360,6 +369,14 @@ const Appointment = () => {
                     </label>
                     <textarea name="symptoms" value={formData.symptoms} onChange={handleChange} rows="3" placeholder="อธิบายอาการ... (ไม่บังคับ)" className="w-full p-3 rounded-xl border border-gray-200 outline-none resize-none text-sm md:text-base"></textarea>
                 </div>
+
+                {/* 🔥 กรอบแสดงข้อความ Error (คิวเต็ม) แทรกก่อนปุ่มกด */}
+                {errorMessage && (
+                    <div className="flex items-center gap-2 p-4 text-red-700 bg-red-50 rounded-xl border border-red-200 animate-fade-in">
+                        <AlertCircle size={20} className="shrink-0" />
+                        <span className="text-sm font-medium">{errorMessage}</span>
+                    </div>
+                )}
 
                 <button type="submit" disabled={loading || !formData.appointDate || availableTimeSlots.length === 0} className={`w-full py-3 md:py-4 rounded-xl font-bold text-white transition-all text-base md:text-lg ${ (loading || !formData.appointDate || availableTimeSlots.length === 0) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-lg' }`}>
                     {loading ? 'กำลังดำเนินการ...' : 'ยืนยันการจองคิว'}

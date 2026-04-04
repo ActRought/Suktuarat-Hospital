@@ -298,6 +298,22 @@ app.post('/api/appointments', async (req, res) => {
     try {
         await db.query('START TRANSACTION');
 
+        // 🔥 [เพิ่มใหม่] เช็คจำนวนคิวในรอบเวลานั้นว่าเต็ม 4 คิวแล้วหรือยัง 🔥
+        const [existingAppointments] = await db.execute(
+            `SELECT COUNT(*) as count 
+             FROM appointment 
+             WHERE Doctor_ID = ? AND AppointDate = ? AND AppointTime = ? AND Status != 'ยกเลิก'`,
+            [doctorId, appointDate, appointTime]
+        );
+
+        if (existingAppointments[0].count >= 4) {
+            await db.query('ROLLBACK');
+            console.log(`[APPOINTMENT_FULL] ⚠️ คิวเต็ม - DoctorID: ${doctorId}, วันที่: ${appointDate}, เวลา: ${appointTime}`);
+            // ส่ง status 400 เพื่อให้ Frontend รู้ว่าเป็น Error จากการทำรายการไม่สำเร็จ
+            return res.status(400).json({ message: 'คิวในรอบเวลานี้เต็มแล้ว โปรดจองคิวในช่วงเวลาอื่น' });
+        }
+        // 🔥 [สิ้นสุดส่วนที่เพิ่มใหม่] 🔥
+
         const [appointResult] = await db.execute(
             `INSERT INTO appointment (PatientID, Doctor_ID, InsuranceID, AppointDate, AppointTime, Symptoms, Status) 
              VALUES (?, ?, ?, ?, ?, ?, 'ยืนยันแล้ว')`,
